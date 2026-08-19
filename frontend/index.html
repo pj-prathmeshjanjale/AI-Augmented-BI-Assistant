@@ -979,7 +979,20 @@
             }
 
             .chart-container-box {
-                height: 350px !important;
+                height: auto !important;
+                min-height: 250px !important;
+                page-break-inside: avoid;
+            }
+
+            .chart-container-box canvas {
+                display: none !important;
+            }
+
+            .print-chart-image {
+                display: block !important;
+                max-width: 100% !important;
+                height: auto !important;
+                margin: 10px auto !important;
             }
         }
 
@@ -1296,40 +1309,42 @@
             return;
         }
 
-        if (!confirm("📄 Confirm Export Executive BI Report as PDF?\n\nClick OK to generate and download your PDF report.")) {
+        if (!confirm("📄 Open Executive PDF Print & Save Preview?\n\nThis will open the browser print window where you can select page numbers, layout, and save as PDF with full visual charts.")) {
             return;
         }
 
-        if (window.html2pdf) {
-            const element = document.createElement("div");
-            element.style.padding = "20px";
-            element.style.background = "#ffffff";
-            element.style.fontFamily = "sans-serif";
-            element.innerHTML = `
-                <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px;">
-                    <h1 style="color: #0f172a; margin: 0; font-size: 20px;">Enterprise AI BI Executive Summary Report</h1>
-                    <p style="color: #64748b; margin: 4px 0 0; font-size: 12px;">Generated on ${new Date().toLocaleString()}</p>
-                </div>
-                ${chat.innerHTML}
-            `;
-            // Remove unnecessary interactive control elements from PDF
-            element.querySelectorAll(".powerbi-controls, .export-btn-group, .sql-toggle, button, .clear-button").forEach(el => el.remove());
+        // Convert all active Chart.js canvases to <img> elements so visual graphs print 100% reliably in PDF preview
+        const chartContainers = document.querySelectorAll(".chart-container-box");
+        const printImages = [];
 
-            const opt = {
-                margin:       [0.4, 0.4, 0.4, 0.4],
-                filename:     `Executive_BI_Report_${Date.now()}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
+        chartContainers.forEach(box => {
+            const canvas = box.querySelector("canvas");
+            if (canvas) {
+                try {
+                    const dataUrl = canvas.toDataURL("image/png");
+                    const img = document.createElement("img");
+                    img.src = dataUrl;
+                    img.className = "print-chart-image";
+                    img.style.maxWidth = "100%";
+                    img.style.height = "auto";
+                    img.style.display = "block";
+                    img.style.margin = "10px auto";
+                    box.appendChild(img);
+                    printImages.push(img);
+                } catch (e) {
+                    console.warn("Chart canvas print conversion error:", e);
+                }
+            }
+        });
 
-            html2pdf().set(opt).from(element).save().catch(err => {
-                console.warn("html2pdf fallback to window.print:", err);
-                window.print();
-            });
-        } else {
+        // Trigger native browser print window (enabling page range selection, layout, and Save as PDF)
+        setTimeout(() => {
             window.print();
-        }
+            // Clean up temporary print images after print dialog opens
+            setTimeout(() => {
+                printImages.forEach(img => img.remove());
+            }, 1200);
+        }, 250);
     }
 
     function startVoiceRecognition() {
