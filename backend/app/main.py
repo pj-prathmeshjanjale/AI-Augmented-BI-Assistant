@@ -605,6 +605,63 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = "default_business.db") 
     return s
 
 
+def generate_smart_followup_suggestions(question: str, results=None, active_mode: str = "mysql") -> list:
+    """Generates 3 contextual follow-up question chips based on question intent and active mode."""
+    q_lower = question.lower()
+
+    if active_mode == "csv":
+        if "revenue" in q_lower or "sales" in q_lower or "price" in q_lower:
+            return [
+                "Which category generated the highest total revenue?",
+                "What is the average transaction value across all orders?",
+                "Show monthly sales performance comparison"
+            ]
+        elif "customer" in q_lower or "user" in q_lower:
+            return [
+                "Top 5 most frequent purchasing customers",
+                "What is the distribution of orders per customer?",
+                "Which region has the highest number of active customers?"
+            ]
+        elif "product" in q_lower or "item" in q_lower:
+            return [
+                "Top 10 highest-priced items in dataset",
+                "Which products have the highest order quantity?",
+                "Show breakdown of items by category"
+            ]
+        else:
+            return [
+                "What are the top 5 performing items by metric?",
+                "Show average and total values across categories",
+                "Compare top vs bottom performing entries"
+            ]
+    else:
+        # Default MySQL business_db mode
+        if "revenue" in q_lower or "sale" in q_lower or "month" in q_lower:
+            return [
+                "Which region generated the highest revenue?",
+                "Top 5 most profitable products",
+                "Compare quarterly sales trends for orders"
+            ]
+        elif "product" in q_lower or "item" in q_lower or "category" in q_lower:
+            return [
+                "Which product category has the highest unit sales?",
+                "Show top 5 products with highest unit prices",
+                "List suppliers providing top selling products"
+            ]
+        elif "customer" in q_lower or "region" in q_lower:
+            return [
+                "Which customer placed the most orders?",
+                "Show order volume breakdown by region",
+                "What is the average order value per customer?"
+            ]
+        else:
+            return [
+                "Compair last 2 month revenue",
+                "Most sale product in last 1month",
+                "Top 5 customers with highest total order spending"
+            ]
+
+
 # ==========================================
 # SMART QUERY EXECUTOR
 # ==========================================
@@ -790,6 +847,7 @@ def ask_question(request: QuestionRequest):
             else:
                 data_source = "🗄️ Database: MySQL (business_db)"
 
+            followups = generate_smart_followup_suggestions(question, results, active_mode)
             return {
                 "success": True,
                 "question": question,
@@ -799,7 +857,8 @@ def ask_question(request: QuestionRequest):
                 "sql": sql,
                 "results": formatted_results,
                 "answer": answer,
-                "chart": chart
+                "chart": chart,
+                "followup_suggestions": followups
             }
 
         except Exception as query_err:
@@ -822,7 +881,8 @@ def ask_question(request: QuestionRequest):
                     "sql": sql,
                     "results": [],
                     "answer": answer_msg,
-                    "chart": None
+                    "chart": None,
+                    "followup_suggestions": generate_smart_followup_suggestions(question, None, active_mode)
                 }
             raise
 

@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- html2pdf.js for mobile PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- SheetJS for Excel (.xlsx) Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
 
@@ -1543,6 +1545,21 @@
 
                 <div class="answer-title">Executive Summary</div>
                 <div class="answer-text">${formatExecutiveSummaryText(data.answer || "")}</div>
+
+                ${Array.isArray(data.followup_suggestions) && data.followup_suggestions.length > 0 ? `
+                    <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #cbd5e1;">
+                        <div style="font-size: 11.5px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 8px;">
+                            <i class="fa-solid fa-lightbulb" style="color: #f59e0b;"></i> Suggested Follow-Up Questions:
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            ${data.followup_suggestions.map(s => `
+                                <button class="chip-btn" style="font-size: 12px; padding: 6px 12px; border-radius: 10px;" onclick="sendPreset('${escapeHTML(s).replace(/'/g, "\\'")}')">
+                                    <i class="fa-solid fa-arrow-right" style="color: #2563eb;"></i> ${escapeHTML(s)}
+                                </button>
+                            `).join("")}
+                        </div>
+                    </div>
+                ` : ''}
         `;
 
         if (resolvedChartData && resolvedChartData.values.length > 0) {
@@ -1583,6 +1600,9 @@
                     <div class="export-btn-group">
                         <button class="btn-secondary" onclick="exportTableToCSV('${tableId}')">
                             <i class="fa-solid fa-file-csv"></i> Export CSV
+                        </button>
+                        <button class="btn-secondary" onclick="exportTableToExcel('${tableId}')">
+                            <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Export Excel
                         </button>
                     </div>
                 </div>
@@ -1963,6 +1983,24 @@
         }
     }
 
+    function exportTableToExcel(tableWrapperId) {
+        const wrapper = document.getElementById(tableWrapperId);
+        if (!wrapper) return;
+        const table = wrapper.querySelector("table");
+        if (!table) return;
+
+        if (!confirm("📊 Confirm Export Query Results Table as Excel (.xlsx)?\n\nClick OK to download your styled Excel workbook.")) {
+            return;
+        }
+
+        if (window.XLSX) {
+            const wb = XLSX.utils.table_to_book(table, { sheet: "BI Query Results" });
+            XLSX.writeFile(wb, `Query_Results_${Date.now()}.xlsx`);
+        } else {
+            exportTableToCSV(tableWrapperId);
+        }
+    }
+
     function formatResults(results) {
         if (!results) return "";
         if (typeof results === "string" && results.includes("<table")) return results;
@@ -2104,6 +2142,7 @@
     window.updatePowerBIChart = updatePowerBIChart;
     window.exportChartAsImage = exportChartAsImage;
     window.exportTableToCSV = exportTableToCSV;
+    window.exportTableToExcel = exportTableToExcel;
     window.sendPreset = sendPreset;
     window.startVoiceRecognition = startVoiceRecognition;
     window.exportExecutivePDF = exportExecutivePDF;
