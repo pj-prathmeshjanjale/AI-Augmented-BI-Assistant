@@ -44,6 +44,50 @@ app.add_middleware(
 )
 
 
+@app.options("/{full_path:path}")
+async def preflight_options_handler(full_path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
+
+@app.middleware("http")
+async def add_cors_headers(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        print("Middleware caught exception:", exc)
+        return Response(
+            content=f'{{"detail": "{str(exc)}"}}',
+            status_code=500,
+            media_type="application/json",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
+        )
+
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+
 # ==========================================
 # MULTI-CSV LIBRARY MANAGER STATE
 # ==========================================
@@ -335,6 +379,9 @@ def inspect_dataset_health(rows: list, clean_headers: list) -> dict:
     total_cols = len(clean_headers)
     total_cells = total_rows * total_cols
     
+    sample_rows = rows[:3000] if total_rows > 3000 else rows
+    sample_size = len(sample_rows)
+
     missing_count = 0
     column_stats = []
 
@@ -343,7 +390,7 @@ def inspect_dataset_health(rows: list, clean_headers: list) -> dict:
         numeric_count = 0
         sample_val = "N/A"
         
-        for row in rows:
+        for row in sample_rows:
             if col_idx < len(row):
                 val = row[col_idx].strip()
                 if val == "" or val.lower() in ["na", "null", "none", "nan"]:
@@ -359,18 +406,19 @@ def inspect_dataset_health(rows: list, clean_headers: list) -> dict:
             else:
                 nulls += 1
 
-        non_nulls = max(1, (total_rows - nulls))
+        non_nulls = max(1, (sample_size - nulls))
         col_type = "Numeric" if (numeric_count / non_nulls) > 0.6 else "Text/Categorical"
-        null_pct = round((nulls / max(1, total_rows)) * 100, 1)
+        null_pct = round((nulls / max(1, sample_size)) * 100, 1)
+        est_null_count = int((null_pct / 100.0) * total_rows)
 
         column_stats.append({
             "column": col_name,
             "type": col_type,
-            "null_count": nulls,
+            "null_count": est_null_count,
             "completeness_pct": round(100 - null_pct, 1),
             "sample_value": sample_val
         })
-        missing_count += nulls
+        missing_count += est_null_count
 
     overall_health = round(((total_cells - missing_count) / max(1, total_cells)) * 100, 1)
 
@@ -452,10 +500,13 @@ async def upload_csv(file: UploadFile = File(...)):
 
         placeholders = ", ".join(["?"] * len(clean_headers))
         insert_sql = f"INSERT INTO `{clean_tbl_name}` VALUES ({placeholders})"
-        cursor.executemany(insert_sql, rows)
-        
         insert_sql_ud = f"INSERT INTO uploaded_data VALUES ({placeholders})"
-        cursor.executemany(insert_sql_ud, rows)
+
+        BATCH_SIZE = 5000
+        for b_idx in range(0, len(rows), BATCH_SIZE):
+            batch = rows[b_idx:b_idx + BATCH_SIZE]
+            cursor.executemany(insert_sql, batch)
+            cursor.executemany(insert_sql_ud, batch)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS csv_registry (
