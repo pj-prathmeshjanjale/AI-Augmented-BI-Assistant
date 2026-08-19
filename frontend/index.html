@@ -870,21 +870,30 @@
             }
 
             .input-area {
-                padding: 10px 12px max(10px, env(safe-area-inset-bottom));
-                background: rgba(255, 255, 255, 0.94);
+                padding: 8px 10px max(8px, env(safe-area-inset-bottom));
+                background: rgba(255, 255, 255, 0.96);
                 backdrop-filter: blur(16px);
             }
 
             .input-container {
                 gap: 6px;
                 align-items: center;
+                display: flex;
             }
 
             #question {
                 padding: 10px 14px;
-                font-size: 14px;
+                font-size: 13.5px;
+                height: 44px;
                 min-height: 44px;
+                max-height: 44px;
+                line-height: 22px;
                 border-radius: 14px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                resize: none;
+                flex: 1;
             }
 
             #askButton span {
@@ -892,10 +901,12 @@
             }
 
             #askButton {
-                padding: 0 16px;
+                padding: 0 14px;
                 height: 44px;
+                min-width: 44px;
                 border-radius: 14px;
                 justify-content: center;
+                flex-shrink: 0;
             }
 
             .clear-button span {
@@ -906,6 +917,7 @@
                 padding: 0 12px;
                 height: 44px;
                 border-radius: 14px;
+                flex-shrink: 0;
             }
 
             .btn-voice {
@@ -913,6 +925,7 @@
                 width: 44px;
                 padding: 0;
                 border-radius: 14px;
+                flex-shrink: 0;
             }
         }
 
@@ -1280,6 +1293,10 @@
 
         if (messages.length === 0) {
             alert("No query results or charts available to export. Please ask a business question first!");
+            return;
+        }
+
+        if (!confirm("📄 Confirm Export Executive BI Report as PDF?\n\nClick OK to generate and download your PDF report.")) {
             return;
         }
 
@@ -1817,6 +1834,11 @@
     function exportChartAsImage(chartId) {
         const canvas = document.getElementById(chartId);
         if (!canvas) return;
+
+        if (!confirm("🖼️ Confirm Save Visual Graph as Image?\n\nClick OK to download high-resolution PNG image.")) {
+            return;
+        }
+
         try {
             const dataUrl = canvas.toDataURL("image/png");
             const blob = dataURLToBlob(dataUrl);
@@ -1851,6 +1873,10 @@
         if (!wrapper) return;
         const table = wrapper.querySelector("table");
         if (!table) return;
+
+        if (!confirm("📁 Confirm Export Query Results Table as CSV?\n\nClick OK to download your CSV file.")) {
+            return;
+        }
 
         let csv = [];
         const rows = table.querySelectorAll("tr");
@@ -1998,7 +2024,21 @@
         });
     }
 
-    window.addEventListener("DOMContentLoaded", loadAvailableDatasets);
+    function adaptPlaceholderForScreen() {
+        const q = document.getElementById("question");
+        if (!q) return;
+        if (window.innerWidth <= 768) {
+            q.placeholder = "Ask a business question...";
+        } else {
+            q.placeholder = "Ask a business question (or click 🎙️ microphone to speak)...";
+        }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+        loadAvailableDatasets();
+        adaptPlaceholderForScreen();
+    });
+    window.addEventListener("resize", adaptPlaceholderForScreen);
 
     window.askQuestion = askQuestion;
     window.clearChat = clearChat;
