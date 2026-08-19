@@ -47,39 +47,40 @@ app.add_middleware(
 
 
 # ==========================================
-# MULTI-CSV LIBRARY MANAGER STATE
 # ==========================================
+# USER SESSION ISOLATION ENGINE
+# ==========================================
+
+SESSIONS_DIR = "sessions"
+os.makedirs(SESSIONS_DIR, exist_ok=True)
 
 CSV_DB_PATH = "uploaded_dataset.db"
 ACTIVE_DATASET_MODE = "csv" if os.path.exists(CSV_DB_PATH) else "mysql"
 ACTIVE_CSV_TABLE = "uploaded_data"
 ACTIVE_CSV_FILENAME = "DF_final_feature.csv" if os.path.exists(CSV_DB_PATH) else None
 
+SESSION_ACTIVE_MODE: Dict[str, str] = {}
+SESSION_ACTIVE_TABLE: Dict[str, str] = {}
+SESSION_ACTIVE_FILENAME: Dict[str, str] = {}
 
-def init_csv_registry():
-    if not os.path.exists(CSV_DB_PATH):
-        return
-    try:
-        conn = sqlite3.connect(CSV_DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS csv_registry (
-                id TEXT PRIMARY KEY,
-                filename TEXT,
-                table_name TEXT,
-                rows INTEGER,
-                cols INTEGER
-            );
-        """)
-        if ACTIVE_CSV_FILENAME:
-            cursor.execute("INSERT OR IGNORE INTO csv_registry VALUES (?, ?, ?, ?, ?)",
-                           ("csv_uploaded_data", ACTIVE_CSV_FILENAME, "uploaded_data", 202616, 22))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print("CSV Registry initialization notice:", e)
 
-init_csv_registry()
+def get_session_db_path(session_id: str) -> str:
+    clean_id = re.sub(r'\W+', '_', session_id or "default_session")
+    return os.path.join(SESSIONS_DIR, f"dataset_{clean_id}.db")
+
+
+def get_session_active_mode(session_id: str) -> str:
+    db_path = get_session_db_path(session_id)
+    default_mode = "csv" if os.path.exists(db_path) else "mysql"
+    return SESSION_ACTIVE_MODE.get(session_id, default_mode)
+
+
+def get_session_active_table(session_id: str) -> str:
+    return SESSION_ACTIVE_TABLE.get(session_id, "uploaded_data")
+
+
+def get_session_active_filename(session_id: str) -> Optional[str]:
+    return SESSION_ACTIVE_FILENAME.get(session_id, None)
 
 
 # ==========================================
@@ -97,6 +98,7 @@ class ClearSessionRequest(BaseModel):
 
 class SwitchDatasetRequest(BaseModel):
     mode: str  # "mysql" or "csv:table_name"
+    session_id: Optional[str] = "default_session"
 
 
 # ==========================================
@@ -172,27 +174,34 @@ def home():
 
 
 @app.get("/health")
-def health_check():
+def health_check(session_id: str = "default_session"):
+    db_path = get_session_db_path(session_id)
     return {
         "status": "healthy",
-        "active_mode": ACTIVE_DATASET_MODE,
-        "active_table": ACTIVE_CSV_TABLE,
-        "csv_dataset_available": os.path.exists(CSV_DB_PATH),
-        "active_csv_filename": ACTIVE_CSV_FILENAME,
+        "session_id": session_id,
+        "active_mode": get_session_active_mode(session_id),
+        "active_table": get_session_active_table(session_id),
+        "csv_dataset_available": os.path.exists(db_path),
+        "active_csv_filename": get_session_active_filename(session_id),
         "conversational_memory": "active",
         "active_sessions": len(SESSION_HISTORY)
     }
 
 
 @app.get("/datasets")
-def list_datasets():
-    """Returns all available datasets (MySQL + all saved CSV library datasets)."""
+def list_datasets(session_id: str = "default_session"):
+    """Returns all available datasets for this isolated user session."""
+    db_path = get_session_db_path(session_id)
+    active_mode = get_session_active_mode(session_id)
+    active_table = get_session_active_table(session_id)
+    active_filename = get_session_active_filename(session_id)
+
     datasets = [
-        {"id": "mysql", "name": "🗄️ Default MySQL Database (business_db)", "active": ACTIVE_DATASET_MODE == "mysql"}
+        {"id": "mysql", "name": "🗄️ Default MySQL Database (business_db)", "active": active_mode == "mysql"}
     ]
-    if os.path.exists(CSV_DB_PATH):
+    if os.path.exists(db_path):
         try:
-            conn = sqlite3.connect(CSV_DB_PATH)
+            conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             cursor.execute("CREATE TABLE IF NOT EXISTS csv_registry (id TEXT PRIMARY KEY, filename TEXT, table_name TEXT, rows INTEGER, cols INTEGER);")
             cursor.execute("SELECT id, filename, table_name FROM csv_registry")
@@ -202,12 +211,12 @@ def list_datasets():
             if not records:
                 datasets.append({
                     "id": "csv:uploaded_data",
-                    "name": f"📁 CSV: {ACTIVE_CSV_FILENAME or 'Uploaded Dataset'}",
-                    "active": (ACTIVE_DATASET_MODE == "csv")
+                    "name": f"📁 CSV: {active_filename or 'Uploaded Dataset'}",
+                    "active": (active_mode == "csv")
                 })
             else:
                 for csv_id, fname, tbl_name in records:
-                    is_active = (ACTIVE_DATASET_MODE == "csv" and ACTIVE_CSV_TABLE == tbl_name)
+                    is_active = (active_mode == "csv" and active_table == tbl_name)
                     datasets.append({
                         "id": f"csv:{tbl_name}",
                         "name": f"📁 CSV: {fname}",
@@ -215,54 +224,50 @@ def list_datasets():
                     })
         except Exception as e:
             print("Error listing CSV library datasets:", e)
-            datasets.append({
-                "id": "csv:uploaded_data",
-                "name": f"📁 CSV: {ACTIVE_CSV_FILENAME or 'Uploaded Dataset'}",
-                "active": (ACTIVE_DATASET_MODE == "csv")
-            })
 
     return {
-        "active_mode": ACTIVE_DATASET_MODE,
-        "active_table": ACTIVE_CSV_TABLE,
+        "active_mode": active_mode,
+        "active_table": active_table,
         "datasets": datasets
     }
 
 
 @app.post("/switch_dataset")
 def switch_dataset(request: SwitchDatasetRequest):
-    """Switch active query engine between MySQL and any saved CSV table."""
-    global ACTIVE_DATASET_MODE, ACTIVE_CSV_TABLE, ACTIVE_CSV_FILENAME
+    """Switch active query engine between MySQL and any saved CSV table for this isolated session."""
+    session_id = request.session_id or "default_session"
+    db_path = get_session_db_path(session_id)
     target_mode = request.mode.strip()
 
     if target_mode.startswith("csv"):
-        if not os.path.exists(CSV_DB_PATH):
-            raise HTTPException(status_code=400, detail="No CSV dataset available. Please upload a CSV first.")
+        if not os.path.exists(db_path):
+            raise HTTPException(status_code=400, detail="No CSV dataset available in your session. Please upload a CSV first.")
         
         parts = target_mode.split(":", 1)
         tbl_name = parts[1] if len(parts) > 1 else "uploaded_data"
 
-        conn = sqlite3.connect(CSV_DB_PATH)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("CREATE TABLE IF NOT EXISTS csv_registry (id TEXT PRIMARY KEY, filename TEXT, table_name TEXT, rows INTEGER, cols INTEGER);")
         cursor.execute("SELECT filename FROM csv_registry WHERE table_name = ?", (tbl_name,))
         row = cursor.fetchone()
         conn.close()
 
-        ACTIVE_DATASET_MODE = "csv"
-        ACTIVE_CSV_TABLE = tbl_name
+        SESSION_ACTIVE_MODE[session_id] = "csv"
+        SESSION_ACTIVE_TABLE[session_id] = tbl_name
         if row:
-            ACTIVE_CSV_FILENAME = row[0]
+            SESSION_ACTIVE_FILENAME[session_id] = row[0]
 
-        label = ACTIVE_CSV_FILENAME or tbl_name
+        label = SESSION_ACTIVE_FILENAME.get(session_id) or tbl_name
         return {
             "success": True,
             "active_mode": "csv",
-            "active_table": ACTIVE_CSV_TABLE,
+            "active_table": tbl_name,
             "message": f"Switched active dataset to CSV: {label}"
         }
 
     elif target_mode == "mysql":
-        ACTIVE_DATASET_MODE = "mysql"
+        SESSION_ACTIVE_MODE[session_id] = "mysql"
         return {
             "success": True,
             "active_mode": "mysql",
@@ -274,20 +279,20 @@ def switch_dataset(request: SwitchDatasetRequest):
 
 @app.post("/delete_dataset/{dataset_id:path}")
 @app.delete("/delete_dataset/{dataset_id:path}")
-def delete_dataset(dataset_id: str):
-    """Deletes an uploaded CSV dataset table from library and resets active mode if needed."""
-    global ACTIVE_DATASET_MODE, ACTIVE_CSV_TABLE, ACTIVE_CSV_FILENAME
+def delete_dataset(dataset_id: str, session_id: str = "default_session"):
+    """Deletes an uploaded CSV dataset table from user's isolated session library."""
+    db_path = get_session_db_path(session_id)
 
     if dataset_id == "mysql":
         raise HTTPException(status_code=400, detail="Cannot delete default MySQL system database.")
 
     tbl_name = dataset_id.replace("csv:", "").strip()
 
-    if not os.path.exists(CSV_DB_PATH):
-        raise HTTPException(status_code=404, detail="No CSV library found.")
+    if not os.path.exists(db_path):
+        raise HTTPException(status_code=404, detail="No CSV library found for this session.")
 
     try:
-        conn = sqlite3.connect(CSV_DB_PATH)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         cursor.execute("SELECT filename FROM csv_registry WHERE table_name = ? OR id = ?", (tbl_name, tbl_name))
@@ -306,20 +311,21 @@ def delete_dataset(dataset_id: str):
         remaining = cursor.fetchall()
         conn.close()
 
-        if ACTIVE_CSV_TABLE == tbl_name or ACTIVE_DATASET_MODE == "csv":
+        active_tbl = get_session_active_table(session_id)
+        if active_tbl == tbl_name or get_session_active_mode(session_id) == "csv":
             if remaining:
-                ACTIVE_DATASET_MODE = "csv"
-                ACTIVE_CSV_TABLE = remaining[0][2]
-                ACTIVE_CSV_FILENAME = remaining[0][1]
+                SESSION_ACTIVE_MODE[session_id] = "csv"
+                SESSION_ACTIVE_TABLE[session_id] = remaining[0][2]
+                SESSION_ACTIVE_FILENAME[session_id] = remaining[0][1]
             else:
-                ACTIVE_DATASET_MODE = "mysql"
-                ACTIVE_CSV_TABLE = "uploaded_data"
-                ACTIVE_CSV_FILENAME = None
+                SESSION_ACTIVE_MODE[session_id] = "mysql"
+                SESSION_ACTIVE_TABLE[session_id] = "uploaded_data"
+                SESSION_ACTIVE_FILENAME[session_id] = None
 
         return {
             "success": True,
-            "message": f"Successfully deleted dataset '{deleted_filename}' from library.",
-            "active_mode": ACTIVE_DATASET_MODE
+            "message": f"Successfully deleted dataset '{deleted_filename}' from your session library.",
+            "active_mode": get_session_active_mode(session_id)
         }
     except Exception as e:
         print("Delete dataset error:", e)
@@ -392,15 +398,19 @@ def inspect_dataset_health(rows: list, clean_headers: list, total_rows: int = No
 
 
 @app.get("/csv_health")
-def get_csv_health():
-    """Generates health inspection stats for active SQLite CSV dataset."""
-    if not os.path.exists(CSV_DB_PATH):
-        raise HTTPException(status_code=400, detail="No active CSV dataset found.")
+def get_csv_health(session_id: str = "default_session"):
+    """Generates health inspection stats for active SQLite CSV dataset in this session."""
+    db_path = get_session_db_path(session_id)
+    active_table = get_session_active_table(session_id)
+    active_filename = get_session_active_filename(session_id)
+
+    if not os.path.exists(db_path):
+        raise HTTPException(status_code=400, detail="No active CSV dataset found for your session.")
 
     try:
-        conn = sqlite3.connect(CSV_DB_PATH)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute(f"PRAGMA table_info(`{ACTIVE_CSV_TABLE}`);")
+        cursor.execute(f"PRAGMA table_info(`{active_table}`);")
         cols_info = cursor.fetchall()
         if not cols_info:
             cursor.execute("PRAGMA table_info(`uploaded_data`);")
@@ -408,15 +418,15 @@ def get_csv_health():
 
         clean_headers = [c[1] for c in cols_info]
 
-        cursor.execute(f"SELECT * FROM `{ACTIVE_CSV_TABLE}` LIMIT 3000;")
+        cursor.execute(f"SELECT * FROM `{active_table}` LIMIT 3000;")
         sample_rows = [list(r) for r in cursor.fetchall()]
 
-        cursor.execute(f"SELECT COUNT(*) FROM `{ACTIVE_CSV_TABLE}`;")
+        cursor.execute(f"SELECT COUNT(*) FROM `{active_table}`;")
         total_count = cursor.fetchone()[0]
         conn.close()
 
         health_report = inspect_dataset_health(sample_rows, clean_headers, total_rows=total_count)
-        health_report["filename"] = ACTIVE_CSV_FILENAME or "uploaded_dataset.csv"
+        health_report["filename"] = active_filename or "uploaded_dataset.csv"
         return health_report
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to inspect CSV health: {str(e)}")
@@ -427,17 +437,17 @@ def get_csv_health():
 # ==========================================
 
 @app.post("/upload_csv")
-async def upload_csv(file: UploadFile = File(...)):
-    global ACTIVE_DATASET_MODE, ACTIVE_CSV_FILENAME, ACTIVE_CSV_TABLE
+async def upload_csv(file: UploadFile = File(...), session_id: str = "default_session"):
+    db_path = get_session_db_path(session_id)
     
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are supported.")
 
     try:
         clean_tbl_name = "csv_tbl_" + re.sub(r'\W+', '_', file.filename.strip().lower()).strip('_')
-        ACTIVE_CSV_FILENAME = file.filename
-        ACTIVE_CSV_TABLE = clean_tbl_name
-        ACTIVE_DATASET_MODE = "csv"
+        SESSION_ACTIVE_FILENAME[session_id] = file.filename
+        SESSION_ACTIVE_TABLE[session_id] = clean_tbl_name
+        SESSION_ACTIVE_MODE[session_id] = "csv"
 
         # Wrap UploadFile.file in a UTF-8 text stream reader
         text_stream = codecs.getreader("utf-8-sig")(file.file)
@@ -459,7 +469,7 @@ async def upload_csv(file: UploadFile = File(...)):
                 seen[h] = 0
                 clean_headers.append(h)
 
-        conn = sqlite3.connect(CSV_DB_PATH)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         cursor.execute(f"DROP TABLE IF EXISTS `{clean_tbl_name}`;")
@@ -536,15 +546,19 @@ async def upload_csv(file: UploadFile = File(...)):
 # SMART QUERY EXECUTOR
 # ==========================================
 
-def smart_execute_query(sql: str):
-    """Executes query against selected active dataset (CSV SQLite or MySQL)."""
-    if ACTIVE_DATASET_MODE == "csv" and os.path.exists(CSV_DB_PATH):
+def smart_execute_query(sql: str, session_id: str = "default_session"):
+    """Executes query against selected active dataset for this isolated session (CSV SQLite or MySQL)."""
+    db_path = get_session_db_path(session_id)
+    active_mode = get_session_active_mode(session_id)
+    active_table = get_session_active_table(session_id)
+
+    if active_mode == "csv" and os.path.exists(db_path):
         try:
             exec_sql = sql
-            if ACTIVE_CSV_TABLE and ACTIVE_CSV_TABLE != "uploaded_data":
-                exec_sql = re.sub(r'\buploaded_data\b', f"`{ACTIVE_CSV_TABLE}`", sql, flags=re.IGNORECASE)
+            if active_table and active_table != "uploaded_data":
+                exec_sql = re.sub(r'\buploaded_data\b', f"`{active_table}`", sql, flags=re.IGNORECASE)
 
-            conn = sqlite3.connect(CSV_DB_PATH)
+            conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(exec_sql)
@@ -557,7 +571,7 @@ def smart_execute_query(sql: str):
         except Exception as e:
             print("SQLite query error, attempting fallback on uploaded_data:", e)
             try:
-                conn = sqlite3.connect(CSV_DB_PATH)
+                conn = sqlite3.connect(db_path)
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(sql)
@@ -582,6 +596,10 @@ def ask_question(request: QuestionRequest):
 
     question = request.question.strip()
     session_id = request.session_id or "default_session"
+    active_mode = get_session_active_mode(session_id)
+    active_table = get_session_active_table(session_id)
+    active_filename = get_session_active_filename(session_id)
+    db_path = get_session_db_path(session_id)
 
     if not question:
         raise HTTPException(status_code=400, detail="Please provide a valid business question.")
@@ -594,7 +612,7 @@ def ask_question(request: QuestionRequest):
             "question": question,
             "session_id": session_id,
             "data_source": "🤖 Groq AI Engine",
-            "active_mode": ACTIVE_DATASET_MODE,
+            "active_mode": active_mode,
             "sql": None,
             "results": [],
             "answer": gen_ai_answer,
@@ -630,9 +648,9 @@ def ask_question(request: QuestionRequest):
                 )
 
         try:
-            sql = generate_sql(question, history=history)
+            sql = generate_sql(question, history=history, session_id=session_id)
         except TypeError:
-            sql = generate_sql(augmented_question)
+            sql = generate_sql(augmented_question, session_id=session_id)
 
         if not sql:
             raise HTTPException(status_code=500, detail="Failed to generate SQL query for your question.")
@@ -649,7 +667,7 @@ def ask_question(request: QuestionRequest):
 
         # Execute query against active mode dataset
         try:
-            results = smart_execute_query(sql)
+            results = smart_execute_query(sql, session_id=session_id)
 
             chart = None
             if should_generate_chart(question):
@@ -663,8 +681,8 @@ def ask_question(request: QuestionRequest):
 
             save_session_turn(session_id, question, sql, answer)
 
-            if ACTIVE_DATASET_MODE == "csv" and os.path.exists(CSV_DB_PATH):
-                data_source = f"📁 CSV: {ACTIVE_CSV_FILENAME or 'Uploaded Dataset'}"
+            if active_mode == "csv" and os.path.exists(db_path):
+                data_source = f"📁 CSV: {active_filename or 'Uploaded Dataset'}"
             else:
                 data_source = "🗄️ Database: MySQL (business_db)"
 
@@ -673,7 +691,7 @@ def ask_question(request: QuestionRequest):
                 "question": question,
                 "session_id": session_id,
                 "data_source": data_source,
-                "active_mode": ACTIVE_DATASET_MODE,
+                "active_mode": active_mode,
                 "sql": sql,
                 "results": formatted_results,
                 "answer": answer,
@@ -682,7 +700,7 @@ def ask_question(request: QuestionRequest):
 
         except Exception as query_err:
             print("Database Query Execution Warning:", query_err)
-            if ACTIVE_DATASET_MODE == "mysql":
+            if active_mode == "mysql":
                 answer_msg = (
                     f"### 🗄️ Generated SQL Query for MySQL (business_db):\n```sql\n{sql}\n```\n\n"
                     "📌 **MySQL Database Status**:\n"
@@ -696,7 +714,7 @@ def ask_question(request: QuestionRequest):
                     "question": question,
                     "session_id": session_id,
                     "data_source": "🗄️ Database: MySQL (business_db)",
-                    "active_mode": ACTIVE_DATASET_MODE,
+                    "active_mode": active_mode,
                     "sql": sql,
                     "results": [],
                     "answer": answer_msg,

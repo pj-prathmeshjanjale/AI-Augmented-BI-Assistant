@@ -2,9 +2,9 @@ from app.ai.schema_context import build_schema_context
 from app.ai.groq_client import client
 
 
-def build_sql_prompt(user_question):
+def build_sql_prompt(user_question, session_id: str = None):
 
-    schema_context = build_schema_context()
+    schema_context = build_schema_context(session_id=session_id)
 
     prompt = f"""
 You are an expert Data Analyst & SQL Generator.
@@ -30,9 +30,9 @@ RULES:
     return prompt
 
 
-def generate_sql(user_question, history=None):
+def generate_sql(user_question, history=None, session_id: str = None):
 
-    prompt = build_sql_prompt(user_question)
+    prompt = build_sql_prompt(user_question, session_id=session_id)
 
     model_name = "openai/gpt-oss-20b"
     

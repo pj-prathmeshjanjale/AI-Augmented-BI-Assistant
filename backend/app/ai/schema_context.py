@@ -67,9 +67,9 @@ orders.total_amount
 """
 
 
-def build_schema_context():
+def build_schema_context(session_id: str = None):
 
-    schema = get_database_schema()
+    schema = get_database_schema(session_id=session_id)
 
     context = "DATABASE: business_db\n\n"
 
