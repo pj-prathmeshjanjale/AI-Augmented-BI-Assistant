@@ -1636,11 +1636,17 @@
                                 </select>
                             </div>
 
+                            <button class="btn-secondary" style="border-color: #c084fc; color: #7e22ce;" onclick="togglePredictiveForecast('${chartId}', this)">
+                                <i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i> Forecast Trend
+                            </button>
+
                             <button class="btn-secondary" onclick="exportChartAsImage('${chartId}')">
                                 <i class="fa-solid fa-download"></i> Save Image
                             </button>
                         </div>
                     </div>
+
+                    <div id="forecast_badge_${chartId}" style="display: none; background: #faf5ff; border: 1px solid #e9d5ff; color: #6b21a8; padding: 10px 14px; border-radius: 12px; font-size: 13px; margin: 12px 0; font-weight: 600;"></div>
 
                     <div class="chart-container-box">
                         <canvas id="${chartId}"></canvas>
@@ -1804,6 +1810,98 @@
         return { headers: rows[0], rows: rows.slice(1) };
     }
 
+    function togglePredictiveForecast(chartId, btn) {
+        const state = chartStateStore[chartId];
+        if (!state) return;
+
+        if (state.isForecastActive) {
+            state.isForecastActive = false;
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i> Forecast Trend';
+            btn.style.background = "#ffffff";
+            btn.style.borderColor = "#cbd5e1";
+            btn.style.color = "#475569";
+            const badge = document.getElementById("forecast_badge_" + chartId);
+            if (badge) badge.style.display = "none";
+            renderPowerBIChart(chartId);
+            return;
+        }
+
+        const origLabels = state.originalData.labels;
+        const origValues = state.originalData.values;
+        const n = origValues.length;
+
+        if (n < 2) {
+            alert("At least 2 data points are required for Predictive Trend Forecasting.");
+            return;
+        }
+
+        // Linear Regression: y = mx + b
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        for (let i = 0; i < n; i++) {
+            sumX += i;
+            sumY += origValues[i];
+            sumXY += i * origValues[i];
+            sumXX += i * i;
+        }
+
+        const denominator = (n * sumXX - sumX * sumX);
+        const m = denominator !== 0 ? (n * sumXY - sumX * sumY) / denominator : 0;
+        const b = (sumY - m * sumX) / n;
+
+        const forecastLabels = [...origLabels];
+        const forecastValues = [...origValues];
+        const isForecastFlags = origValues.map(() => false);
+
+        const lastLabel = origLabels[origLabels.length - 1];
+
+        for (let step = 1; step <= 3; step++) {
+            const nextX = n - 1 + step;
+            let nextVal = m * nextX + b;
+            if (nextVal < 0) nextVal = Math.max(0, origValues[n - 1] * 0.9);
+
+            let nextLabel = `Period +${step} (Forecast)`;
+            if (lastLabel && lastLabel.match(/^\d{4}-\d{2}$/)) {
+                const parts = lastLabel.split("-");
+                let yr = parseInt(parts[0]);
+                let mo = parseInt(parts[1]) + step;
+                while (mo > 12) { mo -= 12; yr += 1; }
+                nextLabel = `${yr}-${String(mo).padStart(2, '0')} (Forecast)`;
+            } else if (lastLabel && !isNaN(parseInt(lastLabel))) {
+                nextLabel = `${parseInt(lastLabel) + step} (Forecast)`;
+            }
+
+            forecastLabels.push(nextLabel);
+            forecastValues.push(nextVal);
+            isForecastFlags.push(true);
+        }
+
+        const lastActual = origValues[n - 1] || 1;
+        const finalProjected = forecastValues[forecastValues.length - 1];
+        const growthPct = ((finalProjected - lastActual) / lastActual * 100).toFixed(1);
+        const growthSign = growthPct >= 0 ? "+" : "";
+
+        state.isForecastActive = true;
+        state.forecastData = {
+            labels: forecastLabels,
+            values: forecastValues,
+            isForecastFlags: isForecastFlags,
+            growthText: `${growthSign}${growthPct}%`
+        };
+
+        btn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> Reset Forecast';
+        btn.style.background = "#f3e8ff";
+        btn.style.borderColor = "#c084fc";
+        btn.style.color = "#7e22ce";
+
+        const badge = document.getElementById("forecast_badge_" + chartId);
+        if (badge) {
+            badge.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i> <b>Predictive AI Forecast (Next 3 Months)</b>: Projected trend ${growthSign}${growthPct}% growth across future periods!`;
+            badge.style.display = "block";
+        }
+
+        renderPowerBIChart(chartId);
+    }
+
     function renderPowerBIChart(chartId) {
         const state = chartStateStore[chartId];
         if (!state) return;
@@ -1811,19 +1909,22 @@
         const canvas = document.getElementById(chartId);
         if (!canvas) return;
 
-        let labels = [...state.originalData.labels];
-        let values = [...state.originalData.values];
+        let labels = state.isForecastActive ? [...state.forecastData.labels] : [...state.originalData.labels];
+        let values = state.isForecastActive ? [...state.forecastData.values] : [...state.originalData.values];
+        let isForecastFlags = state.isForecastActive ? [...state.forecastData.isForecastFlags] : labels.map(() => false);
 
-        if (state.currentSort === "desc") {
-            const combined = labels.map((l, i) => ({ label: l, val: values[i] }));
-            combined.sort((a, b) => b.val - a.val);
-            labels = combined.map(c => c.label);
-            values = combined.map(c => c.val);
-        } else if (state.currentSort === "asc") {
-            const combined = labels.map((l, i) => ({ label: l, val: values[i] }));
-            combined.sort((a, b) => a.val - b.val);
-            labels = combined.map(c => c.label);
-            values = combined.map(c => c.val);
+        if (!state.isForecastActive) {
+            if (state.currentSort === "desc") {
+                const combined = labels.map((l, i) => ({ label: l, val: values[i] }));
+                combined.sort((a, b) => b.val - a.val);
+                labels = combined.map(c => c.label);
+                values = combined.map(c => c.val);
+            } else if (state.currentSort === "asc") {
+                const combined = labels.map((l, i) => ({ label: l, val: values[i] }));
+                combined.sort((a, b) => a.val - b.val);
+                labels = combined.map(c => c.label);
+                values = combined.map(c => c.val);
+            }
         }
 
         if (chartInstances[chartId]) {
@@ -1831,7 +1932,8 @@
         }
 
         const palette = COLOR_THEMES[state.currentTheme] || COLOR_THEMES.indigo;
-        const bgColors = labels.map((_, i) => palette[i % palette.length]);
+        const bgColors = labels.map((_, i) => isForecastFlags[i] ? "#a855f7" : palette[i % palette.length]);
+        const borderColors = labels.map((_, i) => isForecastFlags[i] ? "#7e22ce" : palette[i % palette.length]);
 
         let chartType = state.currentType;
         let indexAxis = 'x';
@@ -1848,10 +1950,10 @@
             data: {
                 labels: labels,
                 datasets: [{
-                    label: state.originalData.datasetLabel || "Value",
+                    label: state.isForecastActive ? "Actual + Predictive Forecast" : (state.originalData.datasetLabel || "Value"),
                     data: values,
                     backgroundColor: chartType === "line" ? palette[0] + "22" : bgColors,
-                    borderColor: chartType === "line" ? palette[0] : bgColors,
+                    borderColor: chartType === "line" ? palette[0] : borderColors,
                     borderWidth: 2,
                     fill: chartType === "line",
                     tension: 0.35,
@@ -2154,6 +2256,7 @@
     window.deleteActiveDataset = deleteActiveDataset;
     window.speakAnswer = speakAnswer;
     window.copyToClipboard = copyToClipboard;
+    window.togglePredictiveForecast = togglePredictiveForecast;
 
 </script>
 
