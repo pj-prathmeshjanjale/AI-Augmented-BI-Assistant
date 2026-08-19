@@ -1964,6 +1964,16 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: indexAxis,
+                onClick: function(evt, elements) {
+                    if (elements && elements.length > 0) {
+                        const index = elements[0].index;
+                        const clickedLabel = labels[index];
+                        const clickedVal = values[index];
+                        if (clickedLabel) {
+                            handleChartDrillDown(clickedLabel, clickedVal);
+                        }
+                    }
+                },
                 plugins: {
                     legend: { display: isCircular, position: "bottom" },
                     tooltip: {
@@ -2106,6 +2116,22 @@
         }
     }
 
+    function handleChartDrillDown(label, val) {
+        if (!label) return;
+        const cleanLabel = String(label).replace(/\s*\(Forecast\)/i, "").trim();
+        let query = `Show detailed breakdown and transactions for ${cleanLabel}`;
+        if (cleanLabel.match(/^\d{4}-\d{2}$/)) {
+            query = `Show top selling products and revenue breakdown for ${cleanLabel}`;
+        }
+        sendPreset(query);
+    }
+
+    function handleTableDrillDown(columnName, cellValue) {
+        if (!cellValue || String(cellValue).length > 60 || !isNaN(cellValue)) return;
+        const query = `Show detailed analytics for ${columnName} "${cellValue}"`;
+        sendPreset(query);
+    }
+
     function formatResults(results) {
         if (!results) return "";
         if (typeof results === "string" && results.includes("<table")) return results;
@@ -2116,7 +2142,15 @@
             table += `</tr></thead><tbody>`;
             results.forEach(r => {
                 table += `<tr>`;
-                columns.forEach(c => table += `<td>${escapeHTML(r[c])}</td>`);
+                columns.forEach(c => {
+                    const val = r[c];
+                    const isClickable = val && String(val).length <= 60 && isNaN(val);
+                    if (isClickable) {
+                        table += `<td style="cursor: pointer; color: #2563eb; text-decoration: underline dotted;" onclick="handleTableDrillDown('${escapeHTML(c)}', '${escapeHTML(val).replace(/'/g, "\\'")}')" title="Click to drill down into '${escapeHTML(val)}'">${escapeHTML(val)}</td>`;
+                    } else {
+                        table += `<td>${escapeHTML(val)}</td>`;
+                    }
+                });
                 table += `</tr>`;
             });
             table += `</tbody></table>`;
@@ -2257,6 +2291,8 @@
     window.speakAnswer = speakAnswer;
     window.copyToClipboard = copyToClipboard;
     window.togglePredictiveForecast = togglePredictiveForecast;
+    window.handleChartDrillDown = handleChartDrillDown;
+    window.handleTableDrillDown = handleTableDrillDown;
 
 </script>
 
