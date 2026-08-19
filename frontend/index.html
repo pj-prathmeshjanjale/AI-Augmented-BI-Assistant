@@ -647,6 +647,75 @@
                 font-size: 16px;
             }
 
+        /* ANIMATIONS & TRANSITIONS */
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(16px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6); }
+            70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .chip-btn:active, .btn-csv-upload:active, .btn-pdf-export:active, #askButton:active, .clear-button:active {
+            transform: scale(0.96);
+            transition: transform 0.1s ease;
+        }
+
+        .mic-active {
+            animation: pulseGlow 1.4s infinite !important;
+            background: #fee2e2 !important;
+            border-color: #ef4444 !important;
+        }
+
+        .loading {
+            background: linear-gradient(90deg, #eff6ff 25%, #dbeafe 50%, #eff6ff 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.8s infinite ease-in-out;
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+        }
+
+        /* MEDIA QUERIES & MOBILE OPTIMIZATION */
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 12px 14px;
+                flex-direction: column;
+                gap: 10px;
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                backdrop-filter: blur(12px);
+                background: rgba(255, 255, 255, 0.94);
+                box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+            }
+
+            .logo {
+                width: 100%;
+                justify-content: center;
+            }
+
             .logo-text h1 {
                 font-size: 16px;
                 text-align: center;
@@ -667,25 +736,34 @@
             .dataset-selector-box {
                 flex: 1 1 100%;
                 justify-content: space-between;
-                padding: 6px 10px;
-                overflow-x: auto;
+                padding: 8px 12px;
+                border-radius: 12px;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+            }
+
+            .dataset-selector-box select {
+                max-width: 220px;
+                font-size: 13px !important;
             }
 
             .btn-pdf-export, .btn-csv-upload {
                 flex: 1;
                 justify-content: center;
-                padding: 8px 12px;
+                padding: 10px 12px;
                 font-size: 12px;
+                border-radius: 12px;
+                min-height: 42px;
             }
 
             #chat {
-                padding: 16px 12px 180px;
+                padding: 14px 12px 160px;
             }
 
             .welcome {
-                margin-top: 20px;
+                margin-top: 10px;
                 padding: 20px 14px;
-                border-radius: 16px;
+                border-radius: 20px;
             }
 
             .welcome-icon {
@@ -694,7 +772,7 @@
             }
 
             .welcome h2 {
-                font-size: 19px;
+                font-size: 18px;
             }
 
             .welcome p {
@@ -703,26 +781,33 @@
             }
 
             .preset-chips {
-                gap: 6px;
-                flex-direction: column;
+                display: flex;
+                gap: 8px;
+                overflow-x: auto;
+                padding-bottom: 8px;
+                scroll-snap-type: x mandatory;
+                -webkit-overflow-scrolling: touch;
             }
 
             .chip-btn {
                 padding: 10px 14px;
                 font-size: 13px;
-                width: 100%;
-                justify-content: flex-start;
+                white-space: nowrap;
+                flex: 0 0 auto;
+                scroll-snap-align: start;
+                border-radius: 12px;
             }
 
             .user-bubble {
-                max-width: 90%;
-                padding: 10px 14px;
+                max-width: 92%;
+                padding: 12px 14px;
                 font-size: 14px;
+                border-radius: 18px 18px 4px 18px;
             }
 
             .ai-bubble {
                 padding: 14px;
-                border-radius: 16px;
+                border-radius: 18px;
             }
 
             .ai-header-row {
@@ -738,10 +823,11 @@
 
             .kpi-card {
                 padding: 10px 12px;
+                border-radius: 12px;
             }
 
             .kpi-card .kpi-value {
-                font-size: 16px;
+                font-size: 17px;
             }
 
             .results-section-header {
@@ -777,12 +863,14 @@
             }
 
             .chart-container-box {
-                height: 280px;
-                padding: 10px 5px;
+                height: 260px;
+                padding: 8px 4px;
             }
 
             .input-area {
-                padding: 10px 12px;
+                padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+                background: rgba(255, 255, 255, 0.94);
+                backdrop-filter: blur(16px);
             }
 
             .input-container {
@@ -791,9 +879,10 @@
             }
 
             #question {
-                padding: 10px 12px;
+                padding: 10px 14px;
                 font-size: 14px;
-                min-height: 42px;
+                min-height: 44px;
+                border-radius: 14px;
             }
 
             #askButton span {
@@ -802,8 +891,8 @@
 
             #askButton {
                 padding: 0 16px;
-                height: 42px;
-                border-radius: 12px;
+                height: 44px;
+                border-radius: 14px;
                 justify-content: center;
             }
 
@@ -813,14 +902,15 @@
 
             .clear-button {
                 padding: 0 12px;
-                height: 42px;
-                border-radius: 12px;
+                height: 44px;
+                border-radius: 14px;
             }
 
             .btn-voice {
-                height: 42px;
-                width: 42px;
+                height: 44px;
+                width: 44px;
                 padding: 0;
+                border-radius: 14px;
             }
         }
 
@@ -832,10 +922,14 @@
             .header-actions {
                 gap: 6px;
             }
+
+            .dataset-selector-box select {
+                max-width: 180px;
+            }
             
             .btn-pdf-export, .btn-csv-upload {
                 font-size: 11px;
-                padding: 6px 10px;
+                padding: 8px 10px;
             }
         }
 
