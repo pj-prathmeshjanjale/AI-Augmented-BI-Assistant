@@ -1,3 +1,4 @@
+import re
 from app.ai.groq_client import client
 
 
@@ -25,10 +26,9 @@ FORMAT RULES:
 5. Keep the language corporate, executive-ready, polished, and direct.
 """
 
-    model_name = "openai/gpt-oss-20b"
     try:
         response = client.chat.completions.create(
-            model=model_name,
+            model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",
@@ -41,21 +41,28 @@ FORMAT RULES:
             ],
             temperature=0
         )
-    except Exception as e:
-        print("Groq API Answer Model Error, using fallback:", e)
-        response = client.chat.completions.create(
-            model="groq/compound",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an Executive Business Intelligence Analyst."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=0
-        )
-
-    return response.choices[0].message.content.strip()
+        return response.choices[0].message.content.strip()
+    except Exception as e1:
+        print("Groq API Primary Answer Model Error, trying Qwen:", e1)
+        try:
+            response = client.chat.completions.create(
+                model="qwen/qwen3.6-27b",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an Executive Business Intelligence Analyst."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0
+            )
+            text = response.choices[0].message.content.strip()
+            text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+            return text
+        except Exception as e2:
+            print("Groq API Answer Model Fallback Error:", e2)
+            rec_count = len(results) if isinstance(results, list) else 'relevant'
+            return f"Based on the dataset analysis, the query returned {rec_count} records for '{question}'. Review the detailed KPI cards and data table below for metrics."
