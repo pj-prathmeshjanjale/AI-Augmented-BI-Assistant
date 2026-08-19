@@ -374,12 +374,12 @@ def clear_session(request: ClearSessionRequest):
     return {"success": True, "message": f"Session {request.session_id} memory cleared."}
 
 
-def inspect_dataset_health(rows: list, clean_headers: list) -> dict:
-    total_rows = len(rows)
+def inspect_dataset_health(rows: list, clean_headers: list, total_rows: int = None) -> dict:
+    actual_total_rows = total_rows if total_rows is not None else len(rows)
     total_cols = len(clean_headers)
-    total_cells = total_rows * total_cols
+    total_cells = actual_total_rows * total_cols
     
-    sample_rows = rows[:3000] if total_rows > 3000 else rows
+    sample_rows = rows[:3000] if len(rows) > 3000 else rows
     sample_size = len(sample_rows)
 
     missing_count = 0
@@ -392,7 +392,7 @@ def inspect_dataset_health(rows: list, clean_headers: list) -> dict:
         
         for row in sample_rows:
             if col_idx < len(row):
-                val = row[col_idx].strip()
+                val = str(row[col_idx]).strip()
                 if val == "" or val.lower() in ["na", "null", "none", "nan"]:
                     nulls += 1
                 else:
@@ -409,7 +409,7 @@ def inspect_dataset_health(rows: list, clean_headers: list) -> dict:
         non_nulls = max(1, (sample_size - nulls))
         col_type = "Numeric" if (numeric_count / non_nulls) > 0.6 else "Text/Categorical"
         null_pct = round((nulls / max(1, sample_size)) * 100, 1)
-        est_null_count = int((null_pct / 100.0) * total_rows)
+        est_null_count = int((null_pct / 100.0) * actual_total_rows)
 
         column_stats.append({
             "column": col_name,
@@ -424,7 +424,7 @@ def inspect_dataset_health(rows: list, clean_headers: list) -> dict:
 
     return {
         "health_score": overall_health,
-        "total_rows": total_rows,
+        "total_rows": actual_total_rows,
         "total_cols": total_cols,
         "total_cells": total_cells,
         "missing_cells": missing_count,
@@ -449,11 +449,14 @@ def get_csv_health():
 
         clean_headers = [c[1] for c in cols_info]
 
-        cursor.execute(f"SELECT * FROM `{ACTIVE_CSV_TABLE}`;")
-        rows = [list(r) for r in cursor.fetchall()]
+        cursor.execute(f"SELECT * FROM `{ACTIVE_CSV_TABLE}` LIMIT 3000;")
+        sample_rows = [list(r) for r in cursor.fetchall()]
+
+        cursor.execute(f"SELECT COUNT(*) FROM `{ACTIVE_CSV_TABLE}`;")
+        total_count = cursor.fetchone()[0]
         conn.close()
 
-        health_report = inspect_dataset_health(rows, clean_headers)
+        health_report = inspect_dataset_health(sample_rows, clean_headers, total_rows=total_count)
         health_report["filename"] = ACTIVE_CSV_FILENAME or "uploaded_dataset.csv"
         return health_report
     except Exception as e:
@@ -472,17 +475,6 @@ async def upload_csv(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Only .csv files are supported.")
 
     try:
-        content = await file.read()
-        text_content = content.decode("utf-8-sig")
-        reader = csv.reader(io.StringIO(text_content))
-        
-        headers = next(reader, None)
-        if not headers:
-            raise HTTPException(status_code=400, detail="CSV file is empty.")
-
-        clean_headers = [re.sub(r'\W+', '_', h.strip().lower()).strip('_') for h in headers]
-        rows = list(reader)
-
         clean_tbl_name = "csv_tbl_" + re.sub(r'\W+', '_', file.filename.strip().lower()).strip('_')
         ACTIVE_CSV_FILENAME = file.filename
         ACTIVE_CSV_TABLE = clean_tbl_name
@@ -493,8 +485,19 @@ async def upload_csv(file: UploadFile = File(...)):
         
         cursor.execute(f"DROP TABLE IF EXISTS `{clean_tbl_name}`;")
         cursor.execute("DROP TABLE IF EXISTS uploaded_data;")
+
+        first_line = await file.readline()
+        if not first_line:
+            raise HTTPException(status_code=400, detail="CSV file is empty.")
         
+        header_text = first_line.decode("utf-8-sig")
+        headers = next(csv.reader([header_text]), None)
+        if not headers:
+            raise HTTPException(status_code=400, detail="Invalid CSV header.")
+
+        clean_headers = [re.sub(r'\W+', '_', h.strip().lower()).strip('_') for h in headers]
         col_defs = ", ".join([f"`{h}` TEXT" for h in clean_headers])
+        
         cursor.execute(f"CREATE TABLE `{clean_tbl_name}` ({col_defs});")
         cursor.execute(f"CREATE TABLE uploaded_data ({col_defs});")
 
@@ -502,9 +505,36 @@ async def upload_csv(file: UploadFile = File(...)):
         insert_sql = f"INSERT INTO `{clean_tbl_name}` VALUES ({placeholders})"
         insert_sql_ud = f"INSERT INTO uploaded_data VALUES ({placeholders})"
 
-        BATCH_SIZE = 5000
-        for b_idx in range(0, len(rows), BATCH_SIZE):
-            batch = rows[b_idx:b_idx + BATCH_SIZE]
+        batch = []
+        sample_rows = []
+        row_count = 0
+        
+        while True:
+            line = await file.readline()
+            if not line:
+                break
+            line_str = line.decode("utf-8", errors="ignore")
+            if not line_str.strip():
+                continue
+            
+            parsed = next(csv.reader([line_str]), None)
+            if parsed:
+                if len(parsed) < len(clean_headers):
+                    parsed += [""] * (len(clean_headers) - len(parsed))
+                elif len(parsed) > len(clean_headers):
+                    parsed = parsed[:len(clean_headers)]
+
+                batch.append(parsed)
+                if len(sample_rows) < 2000:
+                    sample_rows.append(parsed)
+                row_count += 1
+
+                if len(batch) >= 2500:
+                    cursor.executemany(insert_sql, batch)
+                    cursor.executemany(insert_sql_ud, batch)
+                    batch = []
+
+        if batch:
             cursor.executemany(insert_sql, batch)
             cursor.executemany(insert_sql_ud, batch)
 
@@ -518,26 +548,26 @@ async def upload_csv(file: UploadFile = File(...)):
             );
         """)
         cursor.execute("INSERT OR REPLACE INTO csv_registry VALUES (?, ?, ?, ?, ?)",
-                       (clean_tbl_name, file.filename, clean_tbl_name, len(rows), len(clean_headers)))
+                       (clean_tbl_name, file.filename, clean_tbl_name, row_count, len(clean_headers)))
         
         conn.commit()
         conn.close()
 
-        health_report = inspect_dataset_health(rows, clean_headers)
+        health_report = inspect_dataset_health(sample_rows, clean_headers, total_rows=row_count)
 
         return {
             "success": True,
             "filename": file.filename,
-            "message": f"Successfully ingested '{file.filename}' into active CSV Library!",
-            "rows": len(rows),
+            "message": f"Successfully ingested '{file.filename}' ({row_count:,} rows) into active CSV Library!",
+            "rows": row_count,
             "columns": clean_headers,
             "table_name": clean_tbl_name,
             "health": health_report
         }
 
     except Exception as e:
-        print("CSV UPLOAD ERROR:", str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to ingest CSV file: {str(e)}")
+        print("CSV STREAM UPLOAD ERROR:", str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to stream ingest CSV: {str(e)}")
 
 
 # ==========================================
