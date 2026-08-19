@@ -272,7 +272,8 @@ def switch_dataset(request: SwitchDatasetRequest):
         raise HTTPException(status_code=400, detail="Invalid dataset mode selection.")
 
 
-@app.api_route("/delete_dataset/{dataset_id:path}", methods=["DELETE", "POST", "OPTIONS"])
+@app.post("/delete_dataset/{dataset_id:path}")
+@app.delete("/delete_dataset/{dataset_id:path}")
 def delete_dataset(dataset_id: str):
     """Deletes an uploaded CSV dataset table from library and resets active mode if needed."""
     global ACTIVE_DATASET_MODE, ACTIVE_CSV_TABLE, ACTIVE_CSV_FILENAME
