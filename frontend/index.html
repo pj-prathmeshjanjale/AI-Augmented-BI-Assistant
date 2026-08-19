@@ -625,6 +625,220 @@
             font-weight: 500;
         }
 
+        /* =========================================================================
+           RESPONSIVE MOBILE & TABLET STYLES
+           ========================================================================= */
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 12px 16px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            .logo {
+                justify-content: center;
+            }
+
+            .logo-icon {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+
+            .logo-text h1 {
+                font-size: 16px;
+                text-align: center;
+            }
+
+            .logo-text p {
+                font-size: 11px;
+                text-align: center;
+            }
+
+            .header-actions {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+                width: 100%;
+            }
+
+            .dataset-selector-box {
+                flex: 1 1 100%;
+                justify-content: space-between;
+                padding: 6px 10px;
+                overflow-x: auto;
+            }
+
+            .btn-pdf-export, .btn-csv-upload {
+                flex: 1;
+                justify-content: center;
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            #chat {
+                padding: 16px 12px 180px;
+            }
+
+            .welcome {
+                margin-top: 20px;
+                padding: 20px 14px;
+                border-radius: 16px;
+            }
+
+            .welcome-icon {
+                font-size: 36px;
+                margin-bottom: 8px;
+            }
+
+            .welcome h2 {
+                font-size: 19px;
+            }
+
+            .welcome p {
+                font-size: 13px;
+                margin-bottom: 16px;
+            }
+
+            .preset-chips {
+                gap: 6px;
+                flex-direction: column;
+            }
+
+            .chip-btn {
+                padding: 10px 14px;
+                font-size: 13px;
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .user-bubble {
+                max-width: 90%;
+                padding: 10px 14px;
+                font-size: 14px;
+            }
+
+            .ai-bubble {
+                padding: 14px;
+                border-radius: 16px;
+            }
+
+            .ai-header-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+
+            .kpi-cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .kpi-card {
+                padding: 10px 12px;
+            }
+
+            .kpi-card .kpi-value {
+                font-size: 16px;
+            }
+
+            .results-section-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .export-btn-group {
+                width: 100%;
+            }
+
+            .export-btn-group .btn-secondary {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .chart-header-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 12px;
+            }
+
+            .powerbi-controls {
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .control-group {
+                justify-content: space-between;
+                padding: 6px 10px;
+            }
+
+            .chart-container-box {
+                height: 280px;
+                padding: 10px 5px;
+            }
+
+            .input-area {
+                padding: 10px 12px;
+            }
+
+            .input-container {
+                gap: 6px;
+                align-items: center;
+            }
+
+            #question {
+                padding: 10px 12px;
+                font-size: 14px;
+                min-height: 42px;
+            }
+
+            #askButton span {
+                display: none;
+            }
+
+            #askButton {
+                padding: 0 16px;
+                height: 42px;
+                border-radius: 12px;
+                justify-content: center;
+            }
+
+            .clear-button span {
+                display: none;
+            }
+
+            .clear-button {
+                padding: 0 12px;
+                height: 42px;
+                border-radius: 12px;
+            }
+
+            .btn-voice {
+                height: 42px;
+                width: 42px;
+                padding: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .kpi-cards-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-actions {
+                gap: 6px;
+            }
+            
+            .btn-pdf-export, .btn-csv-upload {
+                font-size: 11px;
+                padding: 6px 10px;
+            }
+        }
+
         /* PRINT STYLING */
 
         @media print {
