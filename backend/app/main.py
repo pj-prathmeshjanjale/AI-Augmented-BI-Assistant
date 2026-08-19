@@ -2,6 +2,7 @@ import os
 import re
 import csv
 import io
+import codecs
 import sqlite3
 from typing import Optional, Dict, Any, List
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
@@ -480,24 +481,33 @@ async def upload_csv(file: UploadFile = File(...)):
         ACTIVE_CSV_TABLE = clean_tbl_name
         ACTIVE_DATASET_MODE = "csv"
 
+        # Wrap UploadFile.file in a UTF-8 text stream reader
+        text_stream = codecs.getreader("utf-8-sig")(file.file)
+        reader = csv.reader(text_stream)
+
+        headers = next(reader, None)
+        if not headers:
+            raise HTTPException(status_code=400, detail="CSV file is empty.")
+
+        # Ensure unique, valid SQL column names
+        raw_clean_headers = [re.sub(r'\W+', '_', h.strip().lower()).strip('_') or 'col' for h in headers]
+        clean_headers = []
+        seen = {}
+        for h in raw_clean_headers:
+            if h in seen:
+                seen[h] += 1
+                clean_headers.append(f"{h}_{seen[h]}")
+            else:
+                seen[h] = 0
+                clean_headers.append(h)
+
         conn = sqlite3.connect(CSV_DB_PATH)
         cursor = conn.cursor()
         
         cursor.execute(f"DROP TABLE IF EXISTS `{clean_tbl_name}`;")
         cursor.execute("DROP TABLE IF EXISTS uploaded_data;")
 
-        first_line = await file.readline()
-        if not first_line:
-            raise HTTPException(status_code=400, detail="CSV file is empty.")
-        
-        header_text = first_line.decode("utf-8-sig")
-        headers = next(csv.reader([header_text]), None)
-        if not headers:
-            raise HTTPException(status_code=400, detail="Invalid CSV header.")
-
-        clean_headers = [re.sub(r'\W+', '_', h.strip().lower()).strip('_') for h in headers]
         col_defs = ", ".join([f"`{h}` TEXT" for h in clean_headers])
-        
         cursor.execute(f"CREATE TABLE `{clean_tbl_name}` ({col_defs});")
         cursor.execute(f"CREATE TABLE uploaded_data ({col_defs});")
 
@@ -509,30 +519,24 @@ async def upload_csv(file: UploadFile = File(...)):
         sample_rows = []
         row_count = 0
         
-        while True:
-            line = await file.readline()
-            if not line:
-                break
-            line_str = line.decode("utf-8", errors="ignore")
-            if not line_str.strip():
+        for parsed in reader:
+            if not parsed or not any(parsed):
                 continue
-            
-            parsed = next(csv.reader([line_str]), None)
-            if parsed:
-                if len(parsed) < len(clean_headers):
-                    parsed += [""] * (len(clean_headers) - len(parsed))
-                elif len(parsed) > len(clean_headers):
-                    parsed = parsed[:len(clean_headers)]
 
-                batch.append(parsed)
-                if len(sample_rows) < 2000:
-                    sample_rows.append(parsed)
-                row_count += 1
+            if len(parsed) < len(clean_headers):
+                parsed += [""] * (len(clean_headers) - len(parsed))
+            elif len(parsed) > len(clean_headers):
+                parsed = parsed[:len(clean_headers)]
 
-                if len(batch) >= 2500:
-                    cursor.executemany(insert_sql, batch)
-                    cursor.executemany(insert_sql_ud, batch)
-                    batch = []
+            batch.append(parsed)
+            if len(sample_rows) < 2000:
+                sample_rows.append(parsed)
+            row_count += 1
+
+            if len(batch) >= 5000:
+                cursor.executemany(insert_sql, batch)
+                cursor.executemany(insert_sql_ud, batch)
+                batch = []
 
         if batch:
             cursor.executemany(insert_sql, batch)
