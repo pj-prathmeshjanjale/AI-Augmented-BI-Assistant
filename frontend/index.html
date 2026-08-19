@@ -865,7 +865,7 @@
 
         try {
             const response = await fetch(`${BASE_API_HOST}/delete_dataset/${datasetId}`, {
-                method: "DELETE"
+                method: "POST"
             });
             const data = await response.json();
             if (response.ok) {
