@@ -188,6 +188,95 @@ def health_check(session_id: str = "default_session"):
     }
 
 
+def get_dataset_columns_for_session(session_id: str, table_name: str = None) -> list:
+    """Retrieves column names for the active CSV dataset table in SQLite session database."""
+    db_path = get_session_db_path(session_id)
+    target_table = table_name or get_session_active_table(session_id)
+    if not os.path.exists(db_path):
+        return []
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info(`{target_table}`);")
+        cols = [r[1] for r in cursor.fetchall()]
+        conn.close()
+        return cols
+    except Exception as e:
+        print("Error fetching CSV columns:", e)
+        return []
+
+
+def generate_dataset_tailored_questions(session_id: str, active_mode: str = "mysql", table_name: str = None) -> list:
+    """Generates 3-4 dataset-specific recommended question chips derived directly from actual database columns."""
+    if active_mode == "mysql":
+        return [
+            "Compair last 2 month revenue",
+            "Most sale product in last 1month",
+            "Which region generated the highest revenue?",
+            "Top 5 customers with highest total order spending"
+        ]
+
+    cols = get_dataset_columns_for_session(session_id, table_name)
+    if not cols:
+        return [
+            "Show summary metrics for uploaded CSV",
+            "Top 5 records by highest numeric value",
+            "Show breakdown across key columns"
+        ]
+
+    col_names = [c for c in cols if c and not c.startswith("Unnamed")]
+    
+    numeric_cols = []
+    text_cols = []
+
+    for col in col_names:
+        c_low = col.lower()
+        if any(k in c_low for k in ["revenue", "sale", "sales", "price", "amount", "qty", "quantity", "cost", "total", "val", "value", "score", "salary", "tax", "gdp", "count", "num", "pct", "rate", "sum", "units", "profit", "fee", "point", "marks"]):
+            numeric_cols.append(col)
+        elif any(k in c_low for k in ["name", "country", "region", "state", "city", "category", "dept", "department", "type", "brand", "product", "customer", "user", "status", "group", "item", "title", "code", "gender", "sport", "team"]):
+            text_cols.append(col)
+
+    if not numeric_cols:
+        for col in col_names:
+            if "id" not in col.lower():
+                numeric_cols.append(col)
+                break
+        if not numeric_cols and col_names:
+            numeric_cols.append(col_names[-1])
+
+    if not text_cols:
+        for col in col_names:
+            if col not in numeric_cols:
+                text_cols.append(col)
+                break
+        if not text_cols and col_names:
+            text_cols.append(col_names[0])
+
+    num_col = numeric_cols[0] if numeric_cols else col_names[0]
+    text_col = text_cols[0] if text_cols else col_names[0]
+
+    n_clean = num_col.replace("_", " ").title()
+    t_clean = text_col.replace("_", " ").title()
+
+    questions = []
+    if text_col != num_col:
+        questions.append(f"Total {n_clean} by {t_clean}")
+        questions.append(f"Top 5 {t_clean} with highest {n_clean}")
+        questions.append(f"Average {n_clean} per {t_clean}")
+    else:
+        questions.append(f"Total {n_clean} breakdown")
+        questions.append(f"Top 5 records by {n_clean}")
+
+    if len(numeric_cols) > 1 and numeric_cols[1] != num_col:
+        n2_clean = numeric_cols[1].replace("_", " ").title()
+        questions.append(f"Top 5 entries by {n2_clean}")
+    elif len(text_cols) > 1 and text_cols[1] != text_col:
+        t2_clean = text_cols[1].replace("_", " ").title()
+        questions.append(f"Breakdown of {n_clean} across {t2_clean}")
+
+    return questions[:4]
+
+
 @app.get("/datasets")
 def list_datasets(session_id: str = "default_session"):
     """Returns all available datasets for this isolated user session."""
@@ -225,10 +314,12 @@ def list_datasets(session_id: str = "default_session"):
         except Exception as e:
             print("Error listing CSV library datasets:", e)
 
+    rec_questions = generate_dataset_tailored_questions(session_id, active_mode)
     return {
         "active_mode": active_mode,
         "active_table": active_table,
-        "datasets": datasets
+        "datasets": datasets,
+        "recommended_questions": rec_questions
     }
 
 
@@ -260,11 +351,13 @@ def switch_dataset(request: SwitchDatasetRequest):
             SESSION_ACTIVE_FILENAME[session_id] = row[0]
 
         label = SESSION_ACTIVE_FILENAME.get(session_id) or tbl_name
+        rec_questions = generate_dataset_tailored_questions(session_id, active_mode="csv", table_name=tbl_name)
         return {
             "success": True,
             "active_mode": "csv",
             "active_table": tbl_name,
-            "message": f"Switched active dataset to CSV: {label}"
+            "message": f"Switched active dataset to CSV: {label}",
+            "recommended_questions": rec_questions
         }
 
     elif target_mode == "mysql":
@@ -272,10 +365,12 @@ def switch_dataset(request: SwitchDatasetRequest):
         SESSION_ACTIVE_TABLE[session_id] = "uploaded_data"
         SESSION_ACTIVE_FILENAME[session_id] = None
         SESSION_HISTORY[session_id] = []
+        rec_questions = generate_dataset_tailored_questions(session_id, active_mode="mysql")
         return {
             "success": True,
             "active_mode": "mysql",
-            "message": "Switched active dataset to MySQL Database (business_db)"
+            "message": "Switched active dataset to MySQL Database (business_db)",
+            "recommended_questions": rec_questions
         }
     else:
         raise HTTPException(status_code=400, detail="Invalid dataset mode selection.")
@@ -531,6 +626,7 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default_se
         conn.close()
 
         health_report = inspect_dataset_health(sample_rows, clean_headers, total_rows=row_count)
+        rec_questions = generate_dataset_tailored_questions(session_id, active_mode="csv", table_name=clean_tbl_name)
 
         return {
             "success": True,
@@ -539,7 +635,8 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default_se
             "rows": row_count,
             "columns": clean_headers,
             "table_name": clean_tbl_name,
-            "health": health_report
+            "health": health_report,
+            "recommended_questions": rec_questions
         }
 
     except Exception as e:
@@ -640,61 +737,37 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
     return s
 
 
-def generate_smart_followup_suggestions(question: str, results=None, active_mode: str = "mysql") -> list:
-    """Generates 3 contextual follow-up question chips based on question intent and active mode."""
-    q_lower = question.lower()
-
+def generate_smart_followup_suggestions(question: str, results=None, active_mode: str = "mysql", session_id: str = "default_session") -> list:
+    """Generates 3 contextual follow-up question chips based on question intent and active dataset columns."""
     if active_mode == "csv":
-        if "revenue" in q_lower or "sales" in q_lower or "price" in q_lower:
-            return [
-                "Which category generated the highest total revenue?",
-                "What is the average transaction value across all orders?",
-                "Show monthly sales performance comparison"
-            ]
-        elif "customer" in q_lower or "user" in q_lower:
-            return [
-                "Top 5 most frequent purchasing customers",
-                "What is the distribution of orders per customer?",
-                "Which region has the highest number of active customers?"
-            ]
-        elif "product" in q_lower or "item" in q_lower:
-            return [
-                "Top 10 highest-priced items in dataset",
-                "Which products have the highest order quantity?",
-                "Show breakdown of items by category"
-            ]
-        else:
-            return [
-                "What are the top 5 performing items by metric?",
-                "Show average and total values across categories",
-                "Compare top vs bottom performing entries"
-            ]
+        return generate_dataset_tailored_questions(session_id, active_mode="csv")[:3]
+
+    # Default MySQL business_db mode
+    q_lower = question.lower()
+    if "revenue" in q_lower or "sale" in q_lower or "month" in q_lower:
+        return [
+            "Which region generated the highest revenue?",
+            "Top 5 most profitable products",
+            "Compare quarterly sales trends for orders"
+        ]
+    elif "product" in q_lower or "item" in q_lower or "category" in q_lower:
+        return [
+            "Which product category has the highest unit sales?",
+            "Show top 5 products with highest unit prices",
+            "List suppliers providing top selling products"
+        ]
+    elif "customer" in q_lower or "region" in q_lower:
+        return [
+            "Which customer placed the most orders?",
+            "Show order volume breakdown by region",
+            "What is the average order value per customer?"
+        ]
     else:
-        # Default MySQL business_db mode
-        if "revenue" in q_lower or "sale" in q_lower or "month" in q_lower:
-            return [
-                "Which region generated the highest revenue?",
-                "Top 5 most profitable products",
-                "Compare quarterly sales trends for orders"
-            ]
-        elif "product" in q_lower or "item" in q_lower or "category" in q_lower:
-            return [
-                "Which product category has the highest unit sales?",
-                "Show top 5 products with highest unit prices",
-                "List suppliers providing top selling products"
-            ]
-        elif "customer" in q_lower or "region" in q_lower:
-            return [
-                "Which customer placed the most orders?",
-                "Show order volume breakdown by region",
-                "What is the average order value per customer?"
-            ]
-        else:
-            return [
-                "Compair last 2 month revenue",
-                "Most sale product in last 1month",
-                "Top 5 customers with highest total order spending"
-            ]
+        return [
+            "Compair last 2 month revenue",
+            "Most sale product in last 1month",
+            "Top 5 customers with highest total order spending"
+        ]
 
 
 # ==========================================

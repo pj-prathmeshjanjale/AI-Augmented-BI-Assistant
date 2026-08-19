@@ -1170,15 +1170,38 @@
         ]
     };
 
-    function updatePresetChips(mode) {
+    const CHIP_ICON_ICONS = [
+        { icon: "fa-trophy", color: "#f59e0b" },
+        { icon: "fa-chart-line", color: "#10b981" },
+        { icon: "fa-globe", color: "#06b6d4" },
+        { icon: "fa-cubes", color: "#8b5cf6" }
+    ];
+
+    function updatePresetChips(input) {
         const container = document.getElementById("presetChipsContainer");
         if (!container) return;
-        const presets = DATASET_PRESETS[mode] || DATASET_PRESETS.mysql;
-        container.innerHTML = presets.map(p => `
-            <button class="chip-btn" onclick="sendPreset('${p.text}')">
-                <i class="fa-solid ${p.icon}" style="color: ${p.color};"></i> ${escapeHTML(p.text)}
-            </button>
-        `).join("");
+
+        let questions = [];
+        if (Array.isArray(input)) {
+            questions = input;
+        } else if (typeof input === "string") {
+            const presets = DATASET_PRESETS[input] || DATASET_PRESETS.mysql;
+            questions = presets.map(p => p.text);
+        }
+
+        if (questions.length === 0) {
+            questions = ["Compair last 2 month revenue", "Most sale product in last 1month", "Which region generated the highest revenue?"];
+        }
+
+        container.innerHTML = questions.map((text, idx) => {
+            const meta = CHIP_ICON_ICONS[idx % CHIP_ICON_ICONS.length];
+            const cleanText = typeof text === "string" ? text : (text.text || String(text));
+            return `
+                <button class="chip-btn" onclick="sendPreset('${cleanText.replace(/'/g, "\\'")}')">
+                    <i class="fa-solid ${meta.icon}" style="color: ${meta.color};"></i> ${escapeHTML(cleanText)}
+                </button>
+            `;
+        }).join("");
     }
 
     // =========================================================================
@@ -1202,8 +1225,12 @@
                     `<option value="${d.id}" ${d.active ? 'selected' : ''}>${escapeHTML(d.name)}</option>`
                 ).join("");
             }
-            const activeMode = data.active_mode || (selector ? (selector.value === "mysql" ? "mysql" : "csv") : "mysql");
-            updatePresetChips(activeMode);
+            if (data.recommended_questions && data.recommended_questions.length > 0) {
+                updatePresetChips(data.recommended_questions);
+            } else {
+                const activeMode = data.active_mode || (selector ? (selector.value === "mysql" ? "mysql" : "csv") : "mysql");
+                updatePresetChips(activeMode);
+            }
             updateDeleteButtonVisibility();
         } catch (e) {
             console.warn("Dataset list fetch error:", e);
@@ -1221,8 +1248,12 @@
             });
             const data = await response.json();
             if (response.ok) {
-                const presetMode = mode.startsWith("csv") ? "csv" : "mysql";
-                updatePresetChips(presetMode);
+                if (data.recommended_questions && data.recommended_questions.length > 0) {
+                    updatePresetChips(data.recommended_questions);
+                } else {
+                    const presetMode = mode.startsWith("csv") ? "csv" : "mysql";
+                    updatePresetChips(presetMode);
+                }
                 loadAvailableDatasets();
             } else {
                 alert("Error: " + data.detail);
@@ -1333,6 +1364,9 @@
                 </div>
             `;
             chat.insertBefore(msg, loading);
+            if (data.recommended_questions && data.recommended_questions.length > 0) {
+                updatePresetChips(data.recommended_questions);
+            }
             loadAvailableDatasets();
             scrollToBottom();
 
