@@ -25,6 +25,16 @@ def classify_intent_and_answer(question: str) -> tuple[str, str | None]:
             "• Ask business data questions about your active dataset (e.g. sales, orders, revenue, products, customers, or uploaded CSV metrics)!"
         )
 
+    # 2. Keyword override for business & data analytics questions
+    data_keywords = [
+        "product", "products", "sale", "sales", "revenue", "order", "orders", 
+        "customer", "customers", "employee", "employees", "region", "regions", 
+        "trend", "monthly", "total", "top", "average", "count", "medal", "medals", 
+        "sport", "sports", "gdp", "country", "team", "price", "unit", "sum", "min", "max"
+    ]
+    if any(k in q_lower for k in data_keywords):
+        return "data_query", None
+
     # 2. Fast LLM Classification Prompt
     prompt = f"""
 Classify the user's input into exactly one category:
