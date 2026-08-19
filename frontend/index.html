@@ -1011,9 +1011,16 @@
                 margin-bottom: 20px !important;
             }
 
+            .chart-section {
+                page-break-before: always !important;
+                break-before: page !important;
+                margin-top: 30px !important;
+                padding-top: 20px !important;
+            }
+
             .chart-container-box {
                 height: auto !important;
-                min-height: 250px !important;
+                min-height: 380px !important;
                 page-break-inside: avoid !important;
                 break-inside: avoid !important;
             }
@@ -1024,9 +1031,10 @@
 
             .print-chart-image {
                 display: block !important;
-                max-width: 100% !important;
+                max-width: 95% !important;
                 height: auto !important;
-                margin: 10px auto !important;
+                max-height: 520px !important;
+                margin: 20px auto !important;
             }
         }
 
@@ -1455,6 +1463,7 @@
 
         addUserMessage(question);
         questionInput.value = "";
+        questionInput.blur();
         loading.style.display = "block";
         askButton.disabled = true;
 
