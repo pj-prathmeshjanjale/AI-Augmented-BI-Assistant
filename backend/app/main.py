@@ -648,36 +648,61 @@ def ask_question(request: QuestionRequest):
             raise HTTPException(status_code=403, detail=f"Security Policy Error: {guardrail_msg}")
 
         # Execute query against active mode dataset
-        results = smart_execute_query(sql)
+        try:
+            results = smart_execute_query(sql)
 
-        chart = None
-        if should_generate_chart(question):
-            chart = generate_chart_data(results)
+            chart = None
+            if should_generate_chart(question):
+                chart = generate_chart_data(results)
 
-        if not chart and isinstance(results, list) and len(results) >= 2:
-            chart = generate_chart_data(results)
+            if not chart and isinstance(results, list) and len(results) >= 2:
+                chart = generate_chart_data(results)
 
-        formatted_results = format_results(results)
-        answer = generate_business_answer(question, formatted_results)
+            formatted_results = format_results(results)
+            answer = generate_business_answer(question, formatted_results)
 
-        save_session_turn(session_id, question, sql, answer)
+            save_session_turn(session_id, question, sql, answer)
 
-        if ACTIVE_DATASET_MODE == "csv" and os.path.exists(CSV_DB_PATH):
-            data_source = f"📁 CSV: {ACTIVE_CSV_FILENAME or 'Uploaded Dataset'}"
-        else:
-            data_source = "🗄️ Database: MySQL (business_db)"
+            if ACTIVE_DATASET_MODE == "csv" and os.path.exists(CSV_DB_PATH):
+                data_source = f"📁 CSV: {ACTIVE_CSV_FILENAME or 'Uploaded Dataset'}"
+            else:
+                data_source = "🗄️ Database: MySQL (business_db)"
 
-        return {
-            "success": True,
-            "question": question,
-            "session_id": session_id,
-            "data_source": data_source,
-            "active_mode": ACTIVE_DATASET_MODE,
-            "sql": sql,
-            "results": formatted_results,
-            "answer": answer,
-            "chart": chart
-        }
+            return {
+                "success": True,
+                "question": question,
+                "session_id": session_id,
+                "data_source": data_source,
+                "active_mode": ACTIVE_DATASET_MODE,
+                "sql": sql,
+                "results": formatted_results,
+                "answer": answer,
+                "chart": chart
+            }
+
+        except Exception as query_err:
+            print("Database Query Execution Warning:", query_err)
+            if ACTIVE_DATASET_MODE == "mysql":
+                answer_msg = (
+                    f"### 🗄️ Generated SQL Query for MySQL (business_db):\n```sql\n{sql}\n```\n\n"
+                    "📌 **MySQL Database Status**:\n"
+                    "The Text-to-SQL engine successfully generated the exact query for your MySQL `business_db` database!\n\n"
+                    "• **Local PC Execution**: Run the backend locally (`localhost:8000`) to execute this query directly against your local MySQL server.\n"
+                    "• **Cloud Web Demo Execution**: To test live data execution, KPI cards, and charts on this cloud demo, select an uploaded CSV dataset from the top **Active Dataset** dropdown or click **📁 Upload CSV**!"
+                )
+                save_session_turn(session_id, question, sql, answer_msg)
+                return {
+                    "success": True,
+                    "question": question,
+                    "session_id": session_id,
+                    "data_source": "🗄️ Database: MySQL (business_db)",
+                    "active_mode": ACTIVE_DATASET_MODE,
+                    "sql": sql,
+                    "results": [],
+                    "answer": answer_msg,
+                    "chart": None
+                }
+            raise
 
     except HTTPException:
         raise

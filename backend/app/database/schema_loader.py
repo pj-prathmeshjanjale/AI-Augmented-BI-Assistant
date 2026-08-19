@@ -3,6 +3,89 @@ import sqlite3
 from app.database.connection import get_connection
 
 
+MYSQL_SCHEMA_FALLBACK = {
+    "categories": [
+        {"column": "category_id", "type": "int"},
+        {"column": "category_name", "type": "varchar"},
+        {"column": "description", "type": "text"}
+    ],
+    "customers": [
+        {"column": "customer_id", "type": "int"},
+        {"column": "first_name", "type": "varchar"},
+        {"column": "last_name", "type": "varchar"},
+        {"column": "gender", "type": "enum"},
+        {"column": "email", "type": "varchar"},
+        {"column": "phone", "type": "varchar"},
+        {"column": "city", "type": "varchar"},
+        {"column": "state", "type": "varchar"},
+        {"column": "country", "type": "varchar"},
+        {"column": "registration_date", "type": "date"},
+        {"column": "region_id", "type": "int"}
+    ],
+    "employees": [
+        {"column": "employee_id", "type": "int"},
+        {"column": "first_name", "type": "varchar"},
+        {"column": "last_name", "type": "varchar"},
+        {"column": "email", "type": "varchar"},
+        {"column": "phone", "type": "varchar"},
+        {"column": "department", "type": "varchar"},
+        {"column": "hire_date", "type": "date"},
+        {"column": "salary", "type": "decimal"}
+    ],
+    "orders": [
+        {"column": "order_id", "type": "int"},
+        {"column": "customer_id", "type": "int"},
+        {"column": "order_date", "type": "date"},
+        {"column": "order_status", "type": "varchar"},
+        {"column": "total_amount", "type": "decimal"},
+        {"column": "shipper_id", "type": "int"}
+    ],
+    "order_items": [
+        {"column": "order_item_id", "type": "int"},
+        {"column": "order_id", "type": "int"},
+        {"column": "product_id", "type": "int"},
+        {"column": "quantity", "type": "int"},
+        {"column": "unit_price", "type": "decimal"}
+    ],
+    "payments": [
+        {"column": "payment_id", "type": "int"},
+        {"column": "order_id", "type": "int"},
+        {"column": "payment_date", "type": "date"},
+        {"column": "payment_method", "type": "varchar"},
+        {"column": "payment_status", "type": "varchar"},
+        {"column": "amount", "type": "decimal"}
+    ],
+    "products": [
+        {"column": "product_id", "type": "int"},
+        {"column": "product_name", "type": "varchar"},
+        {"column": "category_id", "type": "int"},
+        {"column": "supplier_id", "type": "int"},
+        {"column": "unit_price", "type": "decimal"},
+        {"column": "stock_quantity", "type": "int"},
+        {"column": "created_at", "type": "date"}
+    ],
+    "regions": [
+        {"column": "region_id", "type": "int"},
+        {"column": "region_name", "type": "varchar"},
+        {"column": "manager_name", "type": "varchar"}
+    ],
+    "shippers": [
+        {"column": "shipper_id", "type": "int"},
+        {"column": "shipper_name", "type": "varchar"},
+        {"column": "phone", "type": "varchar"}
+    ],
+    "suppliers": [
+        {"column": "supplier_id", "type": "int"},
+        {"column": "supplier_name", "type": "varchar"},
+        {"column": "contact_name", "type": "varchar"},
+        {"column": "email", "type": "varchar"},
+        {"column": "phone", "type": "varchar"},
+        {"column": "city", "type": "varchar"},
+        {"column": "country", "type": "varchar"}
+    ]
+}
+
+
 def get_database_schema():
     """
     Dynamically loads schema based on live active dataset mode (CSV or MySQL).
@@ -73,7 +156,9 @@ def get_database_schema():
                 "type": data_type
             })
 
-        return schema
+        if schema:
+            return schema
+        return MYSQL_SCHEMA_FALLBACK
     except Exception as err:
-        print("MySQL Schema Loader Warning:", err)
-        return {}
+        print("MySQL Schema Loader Warning, using schema fallback:", err)
+        return MYSQL_SCHEMA_FALLBACK
