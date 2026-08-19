@@ -757,8 +757,9 @@
 <!-- JAVASCRIPT ENGINE -->
 <script>
 
-    const API_URL = "http://127.0.0.1:8000/ask";
-    const UPLOAD_URL = "http://127.0.0.1:8000/upload_csv";
+    const BASE_API_HOST = "https://ai-bi-assistant-vz0b.onrender.com";
+    const API_URL = `${BASE_API_HOST}/ask`;
+    const UPLOAD_URL = `${BASE_API_HOST}/upload_csv`;
 
     let currentSessionId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
 
@@ -809,7 +810,7 @@
 
     async function loadAvailableDatasets() {
         try {
-            const response = await fetch("http://127.0.0.1:8000/datasets");
+            const response = await fetch(`${BASE_API_HOST}/datasets`);
             const data = await response.json();
             const selector = document.getElementById("datasetSelector");
             if (selector && data.datasets) {
@@ -829,7 +830,7 @@
 
     async function switchDatasetMode(mode) {
         try {
-            const response = await fetch("http://127.0.0.1:8000/switch_dataset", {
+            const response = await fetch(`${BASE_API_HOST}/switch_dataset`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ mode: mode })
@@ -863,7 +864,7 @@
         }
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/delete_dataset/${datasetId}`, {
+            const response = await fetch(`${BASE_API_HOST}/delete_dataset/${datasetId}`, {
                 method: "DELETE"
             });
             const data = await response.json();
