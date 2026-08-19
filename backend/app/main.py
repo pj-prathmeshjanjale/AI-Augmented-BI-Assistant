@@ -542,6 +542,57 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default_se
         raise HTTPException(status_code=500, detail=f"Failed to stream ingest CSV: {str(e)}")
 
 
+def convert_mysql_sql_to_sqlite(sql: str, db_path: str = "default_business.db") -> str:
+    """Translates MySQL date functions and keywords into SQLite compatible equivalents."""
+    s = sql
+
+    # Dynamically find max date in orders table if present, default to 2024-07-15
+    max_date = "2024-07-15"
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute("SELECT MAX(order_date) FROM orders;")
+            row = cur.fetchone()
+            if row and row[0]:
+                max_date = str(row[0])[:10]
+            conn.close()
+        except Exception:
+            pass
+
+    # 1. Convert DATE_SUB(CURDATE() or date_expr, INTERVAL N UNIT)
+    s = re.sub(
+        r"DATE_SUB\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|'[^']+'|[a-zA-Z0-9_\.]+)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
+        lambda m: f"date('{max_date}', '-{m.group(2)} {m.group(3).lower()}')" if any(k in m.group(1).upper() for k in ["CURDATE", "CURRENT_DATE", "NOW"]) else f"date({m.group(1)}, '-{m.group(2)} {m.group(3).lower()}')",
+        s,
+        flags=re.IGNORECASE
+    )
+
+    # 2. Convert DATE_ADD
+    s = re.sub(
+        r"DATE_ADD\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|'[^']+'|[a-zA-Z0-9_\.]+)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
+        lambda m: f"date('{max_date}', '+{m.group(2)} {m.group(3).lower()}')" if any(k in m.group(1).upper() for k in ["CURDATE", "CURRENT_DATE", "NOW"]) else f"date({m.group(1)}, '+{m.group(2)} {m.group(3).lower()}')",
+        s,
+        flags=re.IGNORECASE
+    )
+
+    # 3. Replace CURDATE() / CURRENT_DATE / NOW()
+    s = re.sub(r"\bCURDATE\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bCURRENT_DATE\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bCURRENT_DATE\b", f"'{max_date}'", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bNOW\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
+
+    # 4. Convert DATE_FORMAT(col, '%Y-%m') -> strftime('%Y-%m', col)
+    s = re.sub(
+        r"DATE_FORMAT\(\s*([^,]+)\s*,\s*'([^']+)'\s*\)",
+        r"strftime('\2', \1)",
+        s,
+        flags=re.IGNORECASE
+    )
+
+    return s
+
+
 # ==========================================
 # SMART QUERY EXECUTOR
 # ==========================================
@@ -612,8 +663,7 @@ def smart_execute_query(sql: str, session_id: str = "default_session"):
 
         if target_db and os.path.exists(target_db):
             try:
-                # Convert MySQL DATE_FORMAT to SQLite strftime if present
-                sqlite_sql = re.sub(r"DATE_FORMAT\(([^,]+),\s*'([^']+)'\)", r"strftime('\2', \1)", sql, flags=re.IGNORECASE)
+                sqlite_sql = convert_mysql_sql_to_sqlite(sql, target_db)
                 conn = sqlite3.connect(target_db)
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
