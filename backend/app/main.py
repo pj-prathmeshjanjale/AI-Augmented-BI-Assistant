@@ -560,18 +560,30 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = "default_business.db") 
         except Exception:
             pass
 
-    # 1. Convert DATE_SUB(CURDATE() or date_expr, INTERVAL N UNIT)
+    # 1. Convert nested DATE_FORMAT(DATE_SUB(...), '%Y-%m') expressions first
     s = re.sub(
-        r"DATE_SUB\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|'[^']+'|[a-zA-Z0-9_\.]+)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
-        lambda m: f"date('{max_date}', '-{m.group(2)} {m.group(3).lower()}')" if any(k in m.group(1).upper() for k in ["CURDATE", "CURRENT_DATE", "NOW"]) else f"date({m.group(1)}, '-{m.group(2)} {m.group(3).lower()}')",
+        r"DATE_FORMAT\(\s*DATE_SUB\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)\s*,\s*'([^']+)'\s*\)",
+        r"strftime('\4', date('" + max_date + r"', '-\2 \3'))",
+        s,
+        flags=re.IGNORECASE
+    )
+    s = re.sub(
+        r"DATE_FORMAT\(\s*DATE_ADD\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)\s*,\s*'([^']+)'\s*\)",
+        r"strftime('\4', date('" + max_date + r"', '+\2 \3'))",
         s,
         flags=re.IGNORECASE
     )
 
-    # 2. Convert DATE_ADD
+    # 2. Convert standalone DATE_SUB / DATE_ADD
     s = re.sub(
-        r"DATE_ADD\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|'[^']+'|[a-zA-Z0-9_\.]+)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
-        lambda m: f"date('{max_date}', '+{m.group(2)} {m.group(3).lower()}')" if any(k in m.group(1).upper() for k in ["CURDATE", "CURRENT_DATE", "NOW"]) else f"date({m.group(1)}, '+{m.group(2)} {m.group(3).lower()}')",
+        r"DATE_SUB\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
+        r"date('" + max_date + r"', '-\2 \3')",
+        s,
+        flags=re.IGNORECASE
+    )
+    s = re.sub(
+        r"DATE_ADD\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
+        r"date('" + max_date + r"', '+\2 \3')",
         s,
         flags=re.IGNORECASE
     )
@@ -582,9 +594,9 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = "default_business.db") 
     s = re.sub(r"\bCURRENT_DATE\b", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bNOW\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
 
-    # 4. Convert DATE_FORMAT(col, '%Y-%m') -> strftime('%Y-%m', col)
+    # 4. Convert standalone DATE_FORMAT(col, '%Y-%m') -> strftime('%Y-%m', col)
     s = re.sub(
-        r"DATE_FORMAT\(\s*([^,]+)\s*,\s*'([^']+)'\s*\)",
+        r"DATE_FORMAT\(\s*([^,]+?)\s*,\s*'([^']+)'\s*\)",
         r"strftime('\2', \1)",
         s,
         flags=re.IGNORECASE
