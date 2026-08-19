@@ -1,0 +1,23 @@
+# Environment variables & keys
+.env
+*.env
+
+# SQLite Databases & Dynamic Uploads
+uploaded_dataset.db
+*.db
+*.sqlite3
+
+# Python bytecode & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

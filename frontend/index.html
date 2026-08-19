@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Enterprise AI BI Assistant - Industry Grade Analytics Platform</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons for Enterprise BI Controls -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f4f6fb;
+            color: #0f172a;
+        }
+
+        .app {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HEADER */
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+        }
+
+        .logo-text h1 {
+            margin: 0;
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .logo-text p {
+            margin: 2px 0 0;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dataset-selector-box {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            padding: 4px 10px;
+            border-radius: 14px;
+        }
+
+        .btn-pdf-export {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+            transition: all 0.2s;
+        }
+
+        .btn-pdf-export:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+        }
+
+        .btn-csv-upload {
+            background: linear-gradient(135deg, #2563eb, #3b82f6);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+            transition: all 0.2s;
+        }
+
+        .btn-csv-upload:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+        }
+
+        /* CHAT CONTAINER */
+
+        #chat {
+            width: 100%;
+            max-width: 1060px;
+            margin: 0 auto;
+            padding: 30px 20px 160px;
+            flex: 1;
+        }
+
+        .welcome {
+            text-align: center;
+            margin-top: 60px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        }
+
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            color: #2563eb;
+        }
+
+        .welcome h2 {
+            margin: 0 0 8px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .welcome p {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        .preset-chips {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .chip-btn {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            color: #334155;
+            padding: 9px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chip-btn:hover {
+            background: #eff6ff;
+            border-color: #2563eb;
+            color: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        /* MESSAGES */
+
+        .message {
+            margin-bottom: 28px;
+        }
+
+        .user-message {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .user-bubble {
+            max-width: 75%;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            padding: 14px 20px;
+            border-radius: 20px 20px 4px 20px;
+            line-height: 1.5;
+            font-size: 15px;
+            font-weight: 500;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+        }
+
+        .ai-message {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .ai-bubble {
+            width: 100%;
+            max-width: 980px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        }
+
+        .ai-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 14px;
+            margin-bottom: 16px;
+        }
+
+        .ai-identity {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 15px;
+            color: #0f172a;
+        }
+
+        .ai-identity i {
+            color: #2563eb;
+        }
+
+        .query-timestamp {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .answer-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .answer-text {
+            line-height: 1.6;
+            font-size: 15px;
+            color: #1e293b;
+            margin-bottom: 20px;
+        }
+
+        /* KPI CARDS BAR (POWER BI STYLE) */
+
+        .kpi-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border-left: 4px solid #2563eb;
+        }
+
+        .kpi-card .kpi-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+        }
+
+        .kpi-card .kpi-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .kpi-card .kpi-sub {
+            font-size: 11px;
+            color: #10b981;
+            font-weight: 600;
+        }
+
+        /* RESULTS TABLE */
+
+        .results-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 20px;
+            margin-bottom: 12px;
+        }
+
+        .results-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .export-btn-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-secondary {
+            border: 1px solid #cbd5e1;
+            background: white;
+            color: #334155;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+
+        .query-results {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            font-size: 13.5px;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+            white-space: nowrap;
+        }
+
+        .results-table th {
+            background: #f8fafc;
+            color: #475569;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 11.5px;
+            letter-spacing: 0.04em;
+        }
+
+        .results-table tr:hover td {
+            background: #f8fafc;
+        }
+
+        /* POWER BI CHART CUSTOMIZATION BAR */
+
+        .chart-section {
+            margin-top: 24px;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+            overflow: hidden;
+        }
+
+        .chart-header-toolbar {
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .chart-title-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-title-box h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .powerbi-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #64748b;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .control-select {
+            border: none;
+            outline: none;
+            background: transparent;
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .chart-container-box {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            padding: 20px;
+        }
+
+        /* SQL CODE TOGGLE */
+
+        .sql-toggle {
+            margin-top: 16px;
+            border: none;
+            background: transparent;
+            color: #2563eb;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 6px 0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sql-code {
+            background: #0f172a;
+            color: #38bdf8;
+            padding: 16px;
+            border-radius: 12px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            margin-top: 8px;
+            font-family: "JetBrains Mono", Consolas, monospace;
+        }
+
+        /* INPUT AREA */
+
+        .input-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border-top: 1px solid #e2e8f0;
+            padding: 16px 20px;
+            z-index: 100;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        .input-container {
+            max-width: 1060px;
+            margin: 0 auto;
+            display: flex;
+            gap: 12px;
+        }
+
+        #question {
+            flex: 1;
+            resize: none;
+            border: 1px solid #cbd5e1;
+            border-radius: 14px;
+            padding: 14px 18px;
+            font-size: 15px;
+            outline: none;
+            min-height: 50px;
+            max-height: 120px;
+            font-family: inherit;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+            transition: border-color 0.2s;
+        }
+
+        #question:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        #askButton {
+            border: none;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            padding: 0 24px;
+            border-radius: 14px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+            transition: all 0.2s;
+        }
+
+        #askButton:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+        }
+
+        #askButton:disabled {
+            background: #94a3b8;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .clear-button {
+            border: 1px solid #cbd5e1;
+            background: white;
+            color: #475569;
+            padding: 0 18px;
+            border-radius: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .clear-button:hover {
+            background: #f1f5f9;
+        }
+
+        /* LOADING SPINNER */
+
+        .loading {
+            display: none;
+            padding: 16px;
+            color: #64748b;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .loading i {
+            color: #2563eb;
+            margin-right: 8px;
+        }
+
+        /* ERROR */
+
+        .error {
+            display: none;
+            max-width: 1060px;
+            margin: 12px auto;
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 14px 18px;
+            font-weight: 500;
+        }
+
+        /* PRINT STYLING */
+
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+
+            .header {
+                box-shadow: none !important;
+                border-bottom: 2px solid #0f172a !important;
+            }
+
+            .header-actions, .input-area, .welcome, .powerbi-controls, .export-btn-group, .sql-toggle, .clear-button, .chip-btn {
+                display: none !important;
+            }
+
+            #chat {
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+            }
+
+            .ai-bubble {
+                box-shadow: none !important;
+                border: 1px solid #cbd5e1 !important;
+                page-break-inside: avoid;
+                margin-bottom: 20px !important;
+            }
+
+            .chart-container-box {
+                height: 350px !important;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<div class="app">
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">
+                <i class="fa-solid fa-chart-line"></i>
+            </div>
+            <div class="logo-text">
+                <h1>Enterprise AI BI Platform</h1>
+                <p>Industry-Grade Natural Language Data Analytics</p>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <!-- DATASET SELECTOR DROPDOWN -->
+            <div class="dataset-selector-box">
+                <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;"><i class="fa-solid fa-layer-group"></i> Active Dataset:</label>
+                <select id="datasetSelector" class="control-select" style="background: white; border: none; font-size: 12px; font-weight: 700; color: #0f172a; cursor: pointer;" onchange="switchDatasetMode(this.value)">
+                    <option value="mysql">🗄️ MySQL Database (business_db)</option>
+                    <option value="csv" selected>📁 CSV: DF_final_feature.csv</option>
+                </select>
+                <button id="btnDeleteDataset" onclick="deleteActiveDataset()" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer;" title="Delete selected dataset from library">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+
+            <!-- CSV UPLOAD BUTTON -->
+            <button class="btn-csv-upload" onclick="document.getElementById('csvFileInput').click()" title="Upload Custom CSV Dataset">
+                <i class="fa-solid fa-file-csv"></i> Upload CSV
+            </button>
+            <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="uploadCSVFile(this)">
+
+            <!-- EXECUTIVE PDF REPORT EXPORT BUTTON -->
+            <button class="btn-pdf-export" onclick="exportExecutivePDF()" title="Export Executive PDF Summary Report">
+                <i class="fa-solid fa-file-pdf"></i> Export PDF Report
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN CHAT & DASHBOARD VIEW -->
+    <main id="chat">
+
+        <!-- WELCOME SCREEN -->
+        <div id="welcome" class="welcome">
+            <div class="welcome-icon">
+                <i class="fa-solid fa-chart-pie"></i>
+            </div>
+            <h2>Welcome to Enterprise AI BI Assistant</h2>
+            <p>Ask natural language questions via text or voice, select active datasets, or upload custom CSV files!</p>
+            
+            <!-- DYNAMIC PRESET CHIPS BASED ON ACTIVE DATASET -->
+            <div class="preset-chips" id="presetChipsContainer">
+                <!-- Populated dynamically based on active dataset -->
+            </div>
+        </div>
+
+        <!-- LOADING -->
+        <div id="loading" class="loading">
+            <i class="fa-solid fa-spinner fa-spin"></i> Executing query against dataset & building visualizations...
+        </div>
+
+    </main>
+
+    <div id="error" class="error"></div>
+
+    <!-- INPUT AREA WITH VOICE BUTTON -->
+    <div class="input-area">
+        <div class="input-container">
+            <textarea id="question" placeholder="Ask a business question (or click 🎙️ microphone to speak)..." rows="1"></textarea>
+            
+            <button class="clear-button" id="micBtn" onclick="startVoiceRecognition()" title="Click to speak your question">
+                <i class="fa-solid fa-microphone" id="micIcon" style="color: #2563eb;"></i>
+            </button>
+
+            <button id="askButton" onclick="askQuestion()">
+                <span>Ask AI BI</span>
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+            <button class="clear-button" onclick="clearChat()">
+                <i class="fa-solid fa-trash-can"></i> Clear
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<!-- JAVASCRIPT ENGINE -->
+<script>
+
+    const API_URL = "http://127.0.0.1:8000/ask";
+    const UPLOAD_URL = "http://127.0.0.1:8000/upload_csv";
+
+    let currentSessionId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+
+    const chartInstances = {};
+    const chartStateStore = {};
+
+    const COLOR_THEMES = {
+        indigo: ["#2563eb", "#06b6d4", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#f43f5e", "#64748b"],
+        emerald: ["#10b981", "#059669", "#14b8a6", "#06b6d4", "#3b82f6", "#6366f1", "#8b5cf6"],
+        sunset: ["#f59e0b", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#6366f1"],
+        neon: ["#8b5cf6", "#06b6d4", "#ec4899", "#10b981", "#f59e0b", "#3b82f6"]
+    };
+
+    const DATASET_PRESETS = {
+        mysql: [
+            { text: "top 5 most sale product", icon: "fa-trophy", color: "#f59e0b" },
+            { text: "region wise revenue", icon: "fa-globe", color: "#06b6d4" },
+            { text: "monthly sales trend", icon: "fa-chart-line", color: "#10b981" }
+        ],
+        csv: [
+            { text: "top 5 teams by medal", icon: "fa-trophy", color: "#f59e0b" },
+            { text: "average weight by sport", icon: "fa-weight-scale", color: "#06b6d4" },
+            { text: "top 5 team by gdp per capita", icon: "fa-globe", color: "#10b981" }
+        ]
+    };
+
+    function updatePresetChips(mode) {
+        const container = document.getElementById("presetChipsContainer");
+        if (!container) return;
+        const presets = DATASET_PRESETS[mode] || DATASET_PRESETS.mysql;
+        container.innerHTML = presets.map(p => `
+            <button class="chip-btn" onclick="sendPreset('${p.text}')">
+                <i class="fa-solid ${p.icon}" style="color: ${p.color};"></i> ${escapeHTML(p.text)}
+            </button>
+        `).join("");
+    }
+
+    // =========================================================================
+    // MULTI-DATASET SELECTOR & LOAD FUNCTIONS
+    // =========================================================================
+    function updateDeleteButtonVisibility() {
+        const selector = document.getElementById("datasetSelector");
+        const btn = document.getElementById("btnDeleteDataset");
+        if (selector && btn) {
+            btn.style.display = (selector.value && selector.value !== "mysql") ? "inline-flex" : "none";
+        }
+    }
+
+    async function loadAvailableDatasets() {
+        try {
+            const response = await fetch("http://127.0.0.1:8000/datasets");
+            const data = await response.json();
+            const selector = document.getElementById("datasetSelector");
+            if (selector && data.datasets) {
+                selector.innerHTML = data.datasets.map(d => 
+                    `<option value="${d.id}" ${d.active ? 'selected' : ''}>${escapeHTML(d.name)}</option>`
+                ).join("");
+            }
+            const activeMode = data.active_mode || (selector ? (selector.value === "mysql" ? "mysql" : "csv") : "mysql");
+            updatePresetChips(activeMode);
+            updateDeleteButtonVisibility();
+        } catch (e) {
+            console.warn("Dataset list fetch error:", e);
+            updatePresetChips("mysql");
+            updateDeleteButtonVisibility();
+        }
+    }
+
+    async function switchDatasetMode(mode) {
+        try {
+            const response = await fetch("http://127.0.0.1:8000/switch_dataset", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: mode })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                const presetMode = mode.startsWith("csv") ? "csv" : "mysql";
+                updatePresetChips(presetMode);
+                loadAvailableDatasets();
+            } else {
+                alert("Error: " + data.detail);
+            }
+        } catch (e) {
+            alert("Failed to switch dataset: " + e.message);
+        }
+    }
+
+    async function deleteActiveDataset() {
+        const selector = document.getElementById("datasetSelector");
+        if (!selector) return;
+        const datasetId = selector.value;
+        const selectedText = selector.options[selector.selectedIndex].text;
+
+        if (datasetId === "mysql") {
+            alert("System MySQL database cannot be deleted.");
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to delete dataset '${selectedText}' from your library?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://127.0.0.1:8000/delete_dataset/${datasetId}`, {
+                method: "DELETE"
+            });
+            const data = await response.json();
+            if (response.ok) {
+                alert(data.message);
+                loadAvailableDatasets();
+            } else {
+                alert("Error: " + data.detail);
+            }
+        } catch (e) {
+            alert("Failed to delete dataset: " + e.message);
+        }
+    }
+
+    async function uploadCSVFile(input) {
+        if (!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const loading = document.getElementById("loading");
+        const welcome = document.getElementById("welcome");
+        welcome.style.display = "none";
+        loading.style.display = "block";
+
+        try {
+            const response = await fetch(UPLOAD_URL, {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Failed to upload CSV.");
+            }
+
+            const chat = document.getElementById("chat");
+            const msg = document.createElement("div");
+            msg.className = "message ai-message";
+            const h = data.health || {};
+            const healthScore = h.health_score || 100;
+            const healthColor = healthScore >= 95 ? "#10b981" : (healthScore >= 80 ? "#f59e0b" : "#ef4444");
+
+            msg.innerHTML = `
+                <div class="ai-bubble" style="border-left: 4px solid #10b981;">
+                    <div class="ai-header-row">
+                        <div class="ai-identity" style="color: #10b981;">
+                            <i class="fa-solid fa-heart-pulse"></i>
+                            <span>Automated Dataset Health Inspector</span>
+                        </div>
+                        <div class="query-timestamp">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                    <div class="answer-title">Dataset Ingested & Analyzed</div>
+                    <div class="answer-text">
+                        Successfully ingested <b>${escapeHTML(data.filename)}</b> into active memory.<br>
+                        <b>Schema:</b> ${data.columns.map(c => `<code>${escapeHTML(c)}</code>`).join(", ")}
+                    </div>
+
+                    <div class="kpi-cards-grid" style="margin-top: 16px; margin-bottom: 16px;">
+                        <div class="kpi-card" style="border-left-color: ${healthColor};">
+                            <span class="kpi-label">Data Quality Score</span>
+                            <span class="kpi-value" style="color: ${healthColor};">${healthScore}%</span>
+                            <span class="kpi-sub"><i class="fa-solid fa-shield-halved"></i> Completion Index</span>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: #2563eb;">
+                            <span class="kpi-label">Total Record Count</span>
+                            <span class="kpi-value">${data.rows.toLocaleString()}</span>
+                            <span class="kpi-sub"><i class="fa-solid fa-table-cells"></i> Across ${data.columns.length} Columns</span>
+                        </div>
+                        <div class="kpi-card" style="border-left-color: #f59e0b;">
+                            <span class="kpi-label">Missing Data Cells</span>
+                            <span class="kpi-value">${(h.missing_cells || 0).toLocaleString()}</span>
+                            <span class="kpi-sub"><i class="fa-solid fa-triangle-exclamation"></i> Out of ${(h.total_cells || (data.rows * data.columns.length)).toLocaleString()} cells</span>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 13px; color: #10b981; font-weight: 600;">
+                        🎉 Dataset is 100% ready for Natural Language AI Analytics!
+                    </div>
+                </div>
+            `;
+            chat.insertBefore(msg, loading);
+            loadAvailableDatasets();
+            scrollToBottom();
+
+        } catch (err) {
+            alert("CSV Upload Error: " + err.message);
+        } finally {
+            loading.style.display = "none";
+            input.value = "";
+        }
+    }
+
+    function exportExecutivePDF() {
+        const chat = document.getElementById("chat");
+        const messages = chat.querySelectorAll(".ai-message");
+
+        if (messages.length === 0) {
+            alert("No query results or charts available to export. Please ask a business question first!");
+            return;
+        }
+
+        window.print();
+    }
+
+    function startVoiceRecognition() {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert("Voice recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+
+        const micBtn = document.getElementById("micBtn");
+        const micIcon = document.getElementById("micIcon");
+
+        micBtn.style.background = "#fee2e2";
+        micBtn.style.borderColor = "#ef4444";
+        micIcon.className = "fa-solid fa-microphone-lines fa-bounce";
+        micIcon.style.color = "#ef4444";
+
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById("question").value = transcript;
+            resetMicUI();
+            askQuestion();
+        };
+
+        recognition.onerror = function(event) {
+            console.warn("Speech recognition error:", event.error);
+            resetMicUI();
+        };
+
+        recognition.onend = function() {
+            resetMicUI();
+        };
+
+        recognition.start();
+    }
+
+    function resetMicUI() {
+        const micBtn = document.getElementById("micBtn");
+        const micIcon = document.getElementById("micIcon");
+        if (micBtn && micIcon) {
+            micBtn.style.background = "white";
+            micBtn.style.borderColor = "#cbd5e1";
+            micIcon.className = "fa-solid fa-microphone";
+            micIcon.style.color = "#2563eb";
+        }
+    }
+
+    function sendPreset(text) {
+        document.getElementById("question").value = text;
+        askQuestion();
+    }
+
+    async function askQuestion() {
+        const questionInput = document.getElementById("question");
+        const askButton = document.getElementById("askButton");
+        const loading = document.getElementById("loading");
+        const error = document.getElementById("error");
+        const welcome = document.getElementById("welcome");
+
+        const question = questionInput.value.trim();
+
+        if (!question) {
+            showError("Please enter a business question.");
+            return;
+        }
+
+        error.style.display = "none";
+        welcome.style.display = "none";
+
+        addUserMessage(question);
+        questionInput.value = "";
+        loading.style.display = "block";
+        askButton.disabled = true;
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    question: question,
+                    session_id: currentSessionId
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || "Something went wrong.");
+            }
+
+            addAIMessage(data);
+
+        } catch (errorObject) {
+            console.error("API ERROR:", errorObject);
+            showError(errorObject.message || "Unable to connect to the AI BI Assistant server at " + API_URL);
+        } finally {
+            loading.style.display = "none";
+            askButton.disabled = false;
+        }
+    }
+
+    document.getElementById("question").addEventListener("keydown", function(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            askQuestion();
+        }
+    });
+
+    function addUserMessage(question) {
+        const chat = document.getElementById("chat");
+        const message = document.createElement("div");
+        message.className = "message user-message";
+        message.innerHTML = `<div class="user-bubble">${escapeHTML(question)}</div>`;
+        chat.insertBefore(message, document.getElementById("loading"));
+        scrollToBottom();
+    }
+
+    function addAIMessage(data) {
+        const chat = document.getElementById("chat");
+        const message = document.createElement("div");
+        message.className = "message ai-message";
+
+        const resolvedChartData = extractChartableData(data);
+        const cardId = "card_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+        const chartId = "chart_" + cardId;
+        const tableId = "table_" + cardId;
+
+        let html = `
+            <div class="ai-bubble" id="${cardId}">
+                <div class="ai-header-row">
+                    <div class="ai-identity">
+                        <i class="fa-solid fa-robot"></i>
+                        <span>AI BI Intelligence Answer</span>
+                        <span style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 4px 10px; border-radius: 12px; font-size: 11.5px; font-weight: 600; margin-left: 8px;">
+                            ${escapeHTML(data.data_source || 'Live Database')}
+                        </span>
+                    </div>
+                    <div class="query-timestamp">
+                        ${new Date().toLocaleTimeString()}
+                    </div>
+                </div>
+
+                <div class="answer-title">Executive Summary</div>
+                <div class="answer-text">${formatExecutiveSummaryText(data.answer || "")}</div>
+        `;
+
+        if (resolvedChartData && resolvedChartData.values.length > 0) {
+            const sumVal = resolvedChartData.values.reduce((a, b) => a + b, 0);
+            const avgVal = sumVal / resolvedChartData.values.length;
+            const maxVal = Math.max(...resolvedChartData.values);
+            const maxIdx = resolvedChartData.values.indexOf(maxVal);
+            const topLabel = resolvedChartData.labels[maxIdx] || "N/A";
+
+            html += `
+                <div class="kpi-cards-grid">
+                    <div class="kpi-card" style="border-left-color: #2563eb;">
+                        <span class="kpi-label">Total Metric Value</span>
+                        <span class="kpi-value">${formatCompactNumber(sumVal)}</span>
+                        <span class="kpi-sub"><i class="fa-solid fa-calculator"></i> Cumulative Sum</span>
+                    </div>
+                    <div class="kpi-card" style="border-left-color: #10b981;">
+                        <span class="kpi-label">Top Performer</span>
+                        <span class="kpi-value" style="font-size: 16px; word-break: break-all;">${escapeHTML(topLabel)}</span>
+                        <span class="kpi-sub"><i class="fa-solid fa-trophy"></i> Highest (${formatCompactNumber(maxVal)})</span>
+                    </div>
+                    <div class="kpi-card" style="border-left-color: #06b6d4;">
+                        <span class="kpi-label">Average Per Category</span>
+                        <span class="kpi-value">${formatCompactNumber(avgVal)}</span>
+                        <span class="kpi-sub"><i class="fa-solid fa-chart-line"></i> Mean Average</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (data.clarification !== true && data.results && data.results !== "No results found.") {
+            html += `
+                <div class="results-section-header">
+                    <div class="results-title">
+                        <i class="fa-solid fa-table"></i>
+                        <span>Query Results Data Table</span>
+                    </div>
+                    <div class="export-btn-group">
+                        <button class="btn-secondary" onclick="exportTableToCSV('${tableId}')">
+                            <i class="fa-solid fa-file-csv"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="query-results" id="${tableId}">
+                    ${formatResults(data.results)}
+                </div>
+            `;
+        }
+
+        if (resolvedChartData) {
+            html += `
+                <div class="chart-section">
+                    <div class="chart-header-toolbar">
+                        <div class="chart-title-box">
+                            <i class="fa-solid fa-sliders" style="color: #2563eb;"></i>
+                            <h3>Visual Graph (${escapeHTML(resolvedChartData.datasetLabel)})</h3>
+                        </div>
+
+                        <div class="powerbi-controls">
+                            <div class="control-group">
+                                <label><i class="fa-solid fa-chart-pie"></i> Chart Type:</label>
+                                <select class="control-select" onchange="updatePowerBIChart('${chartId}', 'type', this.value)">
+                                    <option value="bar" selected>Vertical Bar</option>
+                                    <option value="horizontalBar">Horizontal Bar</option>
+                                    <option value="line">Line Graph</option>
+                                    <option value="doughnut">Pie / Donut</option>
+                                </select>
+                            </div>
+
+                            <div class="control-group">
+                                <label><i class="fa-solid fa-palette"></i> Theme:</label>
+                                <select class="control-select" onchange="updatePowerBIChart('${chartId}', 'theme', this.value)">
+                                    <option value="indigo" selected>Corporate Indigo</option>
+                                    <option value="emerald">Emerald Forest</option>
+                                    <option value="sunset">Warm Sunset</option>
+                                    <option value="neon">Vibrant Neon</option>
+                                </select>
+                            </div>
+
+                            <div class="control-group">
+                                <label><i class="fa-solid fa-arrow-down-wide-short"></i> Sort:</label>
+                                <select class="control-select" onchange="updatePowerBIChart('${chartId}', 'sort', this.value)">
+                                    <option value="desc" selected>High to Low</option>
+                                    <option value="asc">Low to High</option>
+                                    <option value="none">Original</option>
+                                </select>
+                            </div>
+
+                            <button class="btn-secondary" onclick="exportChartAsImage('${chartId}')">
+                                <i class="fa-solid fa-download"></i> Save Image
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="chart-container-box">
+                        <canvas id="${chartId}"></canvas>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (data.sql) {
+            const sqlId = "sql_" + cardId;
+            html += `
+                <button class="sql-toggle" onclick="toggleSQL('${sqlId}')">
+                    <i class="fa-solid fa-code"></i> View Generated SQL Query
+                </button>
+                <pre id="${sqlId}" class="sql-code" style="display:none;">${escapeHTML(data.sql)}</pre>
+            `;
+        }
+
+        html += `</div>`;
+        message.innerHTML = html;
+        chat.insertBefore(message, document.getElementById("loading"));
+
+        if (resolvedChartData && chartId) {
+            const canvas = message.querySelector("canvas");
+            if (canvas) {
+                chartStateStore[chartId] = {
+                    originalData: resolvedChartData,
+                    currentType: "bar",
+                    currentTheme: "indigo",
+                    currentSort: "desc"
+                };
+                renderPowerBIChart(chartId);
+            }
+        }
+
+        scrollToBottom();
+    }
+
+    function extractChartableData(data) {
+        if (data.chart) {
+            let labels = data.chart.labels || [];
+            let values = data.chart.values || data.chart.data || [];
+            if (Array.isArray(data.chart.datasets) && data.chart.datasets.length > 0) {
+                values = data.chart.datasets[0].data || [];
+            }
+            if (labels.length >= 2 && values.length >= 2) {
+                return {
+                    type: data.chart.type || "bar",
+                    datasetLabel: data.chart.datasetLabel || data.chart.label || "Value",
+                    labels: labels,
+                    values: values.map(v => parseStrictNumber(v))
+                };
+            }
+        }
+
+        let tableHeaders = [];
+        let tableRows = [];
+
+        if (Array.isArray(data.results) && data.results.length > 0) {
+            tableHeaders = Object.keys(data.results[0]);
+            tableRows = data.results.map(row => tableHeaders.map(k => row[k]));
+        } else if (typeof data.results === "string") {
+            if (data.results.includes("<table")) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(data.results, "text/html");
+                const ths = doc.querySelectorAll("th");
+                const trs = doc.querySelectorAll("tbody tr");
+
+                tableHeaders = Array.from(ths).map(th => th.textContent.trim());
+                trs.forEach(tr => {
+                    const tds = tr.querySelectorAll("td");
+                    if (tds.length > 0) {
+                        tableRows.push(Array.from(tds).map(td => td.textContent.trim()));
+                    }
+                });
+            } else if (data.results.includes("|")) {
+                const parsed = parseMarkdownTable(data.results);
+                if (parsed) {
+                    tableHeaders = parsed.headers;
+                    tableRows = parsed.rows;
+                }
+            }
+        }
+
+        if (tableHeaders.length < 2 || tableRows.length < 2) return null;
+
+        let valueIdx = 1;
+        let labelIdx = 0;
+
+        for (let c = 0; c < tableHeaders.length; c++) {
+            const h = tableHeaders[c].toLowerCase();
+            if (h.includes("revenue") || h.includes("sale") || h.includes("total") || h.includes("amount") || h.includes("price") || h.includes("quantity") || h.includes("medal") || h.includes("weight") || h.includes("height") || h.includes("val")) {
+                valueIdx = c;
+                break;
+            }
+        }
+
+        for (let c = 0; c < tableHeaders.length; c++) {
+            if (c !== valueIdx) {
+                labelIdx = c;
+                break;
+            }
+        }
+
+        const labels = [];
+        const values = [];
+
+        tableRows.forEach(row => {
+            if (row[labelIdx] !== undefined && row[valueIdx] !== undefined) {
+                labels.push(String(row[labelIdx]));
+                values.push(parseStrictNumber(row[valueIdx]));
+            }
+        });
+
+        const validValues = values.filter(v => !isNaN(v) && v > 0);
+        if (labels.length < 2 || validValues.length === 0) return null;
+
+        return {
+            type: "bar",
+            datasetLabel: tableHeaders[valueIdx].replace(/_/g, " ").toUpperCase(),
+            labels: labels,
+            values: values
+        };
+    }
+
+    function parseStrictNumber(val) {
+        if (typeof val === "number") return val;
+        if (typeof val === "string") {
+            const cleaned = val.replace(/[\$,\s]/g, "");
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? 0 : num;
+        }
+        return 0;
+    }
+
+    function parseMarkdownTable(text) {
+        const lines = text.trim().split("\n").filter(l => l.includes("|"));
+        if (lines.length < 2) return null;
+        const rows = lines.map(line =>
+            line.split("|").map(cell => cell.trim()).filter(cell => cell !== "")
+        ).filter(row => !row.every(cell => /^[-:]+$/.test(cell)));
+        if (rows.length < 2) return null;
+        return { headers: rows[0], rows: rows.slice(1) };
+    }
+
+    function renderPowerBIChart(chartId) {
+        const state = chartStateStore[chartId];
+        if (!state) return;
+
+        const canvas = document.getElementById(chartId);
+        if (!canvas) return;
+
+        let labels = [...state.originalData.labels];
+        let values = [...state.originalData.values];
+
+        if (state.currentSort === "desc") {
+            const combined = labels.map((l, i) => ({ label: l, val: values[i] }));
+            combined.sort((a, b) => b.val - a.val);
+            labels = combined.map(c => c.label);
+            values = combined.map(c => c.val);
+        } else if (state.currentSort === "asc") {
+            const combined = labels.map((l, i) => ({ label: l, val: values[i] }));
+            combined.sort((a, b) => a.val - b.val);
+            labels = combined.map(c => c.label);
+            values = combined.map(c => c.val);
+        }
+
+        if (chartInstances[chartId]) {
+            chartInstances[chartId].destroy();
+        }
+
+        const palette = COLOR_THEMES[state.currentTheme] || COLOR_THEMES.indigo;
+        const bgColors = labels.map((_, i) => palette[i % palette.length]);
+
+        let chartType = state.currentType;
+        let indexAxis = 'x';
+
+        if (chartType === "horizontalBar") {
+            chartType = "bar";
+            indexAxis = 'y';
+        }
+
+        const isCircular = chartType === "pie" || chartType === "doughnut";
+
+        chartInstances[chartId] = new Chart(canvas, {
+            type: chartType,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: state.originalData.datasetLabel || "Value",
+                    data: values,
+                    backgroundColor: chartType === "line" ? palette[0] + "22" : bgColors,
+                    borderColor: chartType === "line" ? palette[0] : bgColors,
+                    borderWidth: 2,
+                    fill: chartType === "line",
+                    tension: 0.35,
+                    borderRadius: chartType === "bar" ? 6 : 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: indexAxis,
+                plugins: {
+                    legend: { display: isCircular, position: "bottom" },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                let val = ctx.parsed.y !== undefined && indexAxis === 'x' ? ctx.parsed.y : (ctx.parsed.x !== undefined ? ctx.parsed.x : ctx.parsed);
+                                return (ctx.dataset.label || "Value") + ": " + formatCompactNumber(val);
+                            }
+                        }
+                    }
+                },
+                scales: isCircular ? {} : {
+                    x: {
+                        grid: { color: "#f1f5f9" },
+                        ticks: {
+                            callback: function(val) {
+                                const l = this.getLabelForValue(val);
+                                return l.length > 16 ? l.substring(0, 15) + "…" : l;
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: "#f1f5f9" },
+                        ticks: {
+                            callback: function(v) { return formatCompactNumber(v); }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function updatePowerBIChart(chartId, property, value) {
+        const state = chartStateStore[chartId];
+        if (!state) return;
+
+        if (property === 'type') state.currentType = value;
+        if (property === 'theme') state.currentTheme = value;
+        if (property === 'sort') state.currentSort = value;
+
+        renderPowerBIChart(chartId);
+    }
+
+    function formatCompactNumber(val) {
+        if (val >= 1000000) return "$" + (val / 1000000).toFixed(2) + "M";
+        if (val >= 1000) return "$" + (val / 1000).toFixed(1) + "k";
+        return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(val);
+    }
+
+    function exportChartAsImage(chartId) {
+        const canvas = document.getElementById(chartId);
+        if (!canvas) return;
+        const link = document.createElement("a");
+        link.download = `BI_Chart_${Date.now()}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    }
+
+    function exportTableToCSV(tableWrapperId) {
+        const wrapper = document.getElementById(tableWrapperId);
+        if (!wrapper) return;
+        const table = wrapper.querySelector("table");
+        if (!table) return;
+
+        let csv = [];
+        const rows = table.querySelectorAll("tr");
+        rows.forEach(r => {
+            const cols = r.querySelectorAll("th, td");
+            const rowData = Array.from(cols).map(c => `"${c.textContent.trim().replace(/"/g, '""')}"`);
+            csv.push(rowData.join(","));
+        });
+
+        const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Query_Results_${Date.now()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function formatResults(results) {
+        if (!results) return "";
+        if (typeof results === "string" && results.includes("<table")) return results;
+        if (Array.isArray(results) && results.length > 0) {
+            const columns = Object.keys(results[0]);
+            let table = `<table class="results-table"><thead><tr>`;
+            columns.forEach(c => table += `<th>${escapeHTML(c)}</th>`);
+            table += `</tr></thead><tbody>`;
+            results.forEach(r => {
+                table += `<tr>`;
+                columns.forEach(c => table += `<td>${escapeHTML(r[c])}</td>`);
+                table += `</tr>`;
+            });
+            table += `</tbody></table>`;
+            return table;
+        }
+        return escapeHTML(String(results));
+    }
+
+    function toggleSQL(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+    }
+
+    function clearChat() {
+        document.querySelectorAll("#chat .message").forEach(m => m.remove());
+        document.getElementById("welcome").style.display = "block";
+        document.getElementById("error").style.display = "none";
+        currentSessionId = "session_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
+    }
+
+    function showError(msg) {
+        const err = document.getElementById("error");
+        err.textContent = msg;
+        err.style.display = "block";
+    }
+
+    function scrollToBottom() {
+        setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 50);
+    }
+
+    function escapeHTML(val) {
+        if (val === null || val === undefined) return "";
+        return String(val).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function formatExecutiveSummaryText(text) {
+        if (!text) return "";
+        let safeText = escapeHTML(text);
+
+        safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        const lines = safeText.split("\n");
+        let formatted = [];
+        let inList = false;
+
+        lines.forEach(line => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("• ")) {
+                if (!inList) {
+                    formatted.push('<ul style="margin: 8px 0 12px; padding-left: 20px; color: #334155; line-height: 1.6;">');
+                    inList = true;
+                }
+                const content = trimmed.replace(/^[-*•]\s*/, "");
+                formatted.push(`<li style="margin-bottom: 6px;">${content}</li>`);
+            } else {
+                if (inList) {
+                    formatted.push('</ul>');
+                    inList = false;
+                }
+                if (trimmed.length > 0) {
+                    formatted.push(`<p style="margin: 0 0 8px; line-height: 1.6;">${line}</p>`);
+                }
+            }
+        });
+
+        if (inList) {
+            formatted.push('</ul>');
+        }
+
+        return formatted.join("");
+    }
+
+    window.addEventListener("DOMContentLoaded", loadAvailableDatasets);
+
+    window.askQuestion = askQuestion;
+    window.clearChat = clearChat;
+    window.toggleSQL = toggleSQL;
+    window.updatePowerBIChart = updatePowerBIChart;
+    window.exportChartAsImage = exportChartAsImage;
+    window.exportTableToCSV = exportTableToCSV;
+    window.sendPreset = sendPreset;
+    window.startVoiceRecognition = startVoiceRecognition;
+    window.exportExecutivePDF = exportExecutivePDF;
+    window.uploadCSVFile = uploadCSVFile;
+    window.switchDatasetMode = switchDatasetMode;
+    window.deleteActiveDataset = deleteActiveDataset;
+
+</script>
+
+</body>
+</html>
