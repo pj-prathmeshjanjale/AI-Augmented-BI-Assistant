@@ -951,14 +951,26 @@
         /* PRINT STYLING */
 
         @media print {
-            body {
+            * {
+                animation: none !important;
+                transition: none !important;
+                transform: none !important;
+            }
+
+            html, body, .app {
                 background: white !important;
                 color: black !important;
+                height: auto !important;
+                min-height: 0 !important;
+                display: block !important;
+                overflow: visible !important;
             }
 
             .header {
+                position: relative !important;
                 box-shadow: none !important;
                 border-bottom: 2px solid #0f172a !important;
+                padding: 10px 0 !important;
             }
 
             .header-actions, .input-area, .welcome, .powerbi-controls, .export-btn-group, .sql-toggle, .clear-button, .chip-btn {
@@ -966,22 +978,44 @@
             }
 
             #chat {
-                padding: 0 !important;
+                display: block !important;
+                padding: 10px 0 !important;
                 margin: 0 !important;
+                max-width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            .message {
+                display: block !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+                margin-bottom: 20px !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            .user-bubble {
+                background: #f1f5f9 !important;
+                color: #0f172a !important;
+                border: 1px solid #cbd5e1 !important;
                 max-width: 100% !important;
             }
 
             .ai-bubble {
+                background: white !important;
                 box-shadow: none !important;
                 border: 1px solid #cbd5e1 !important;
-                page-break-inside: avoid;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
                 margin-bottom: 20px !important;
             }
 
             .chart-container-box {
                 height: auto !important;
                 min-height: 250px !important;
-                page-break-inside: avoid;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
             }
 
             .chart-container-box canvas {
