@@ -547,15 +547,42 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default_se
         raise HTTPException(status_code=500, detail=f"Failed to stream ingest CSV: {str(e)}")
 
 
-def convert_mysql_sql_to_sqlite(sql: str, db_path: str = "default_business.db") -> str:
+def get_default_db_path() -> str:
+    possible_paths = [
+        "default_business.db",
+        os.path.abspath("default_business.db"),
+        os.path.join(os.path.dirname(__file__), "..", "..", "default_business.db"),
+        os.path.join(os.path.dirname(__file__), "..", "default_business.db"),
+        os.path.join(os.path.dirname(__file__), "default_business.db")
+    ]
+    for p in possible_paths:
+        if os.path.exists(p):
+            return p
+    try:
+        from app.database.default_db_seeder import seed_default_business_db
+        seed_default_business_db()
+        return "default_business.db"
+    except Exception as seed_err:
+        print("Seeder error:", seed_err)
+        return "default_business.db"
+
+
+@app.on_event("startup")
+def startup_event():
+    get_default_db_path()
+
+
+def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
     """Translates MySQL date functions and keywords into SQLite compatible equivalents."""
     s = sql
 
-    # Dynamically find max date in orders table if present, default to 2024-07-15
-    max_date = "2024-07-15"
-    if os.path.exists(db_path):
+    target_db = db_path or get_default_db_path()
+
+    # Dynamically find max date in orders table if present, default to 2026-08-09
+    max_date = "2026-08-09"
+    if target_db and os.path.exists(target_db):
         try:
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(target_db)
             cur = conn.cursor()
             cur.execute("SELECT MAX(order_date) FROM orders;")
             row = cur.fetchone()
@@ -593,18 +620,20 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = "default_business.db") 
         flags=re.IGNORECASE
     )
 
-    # 3. Replace CURDATE() / CURRENT_DATE / NOW()
+    # 3. Convert DATE_FORMAT(col, fmt) -> strftime(fmt, col)
+    s = re.sub(
+        r"DATE_FORMAT\(\s*([a-zA-Z0-9_\.]+)\s*,\s*'([^']+)'\s*\)",
+        r"strftime('\2', \1)",
+        s,
+        flags=re.IGNORECASE
+    )
+
+    # 4. Replace CURDATE() / CURRENT_DATE / NOW()
     s = re.sub(r"\bCURDATE\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bCURRENT_DATE\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bCURRENT_DATE\b", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bNOW\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
 
-    # 4. Convert standalone DATE_FORMAT(col, '%Y-%m') -> strftime('%Y-%m', col)
-    s = re.sub(
-        r"DATE_FORMAT\(\s*([^,]+?)\s*,\s*'([^']+)'\s*\)",
-        r"strftime('\2', \1)",
-        s,
-        flags=re.IGNORECASE
     )
 
     return s
