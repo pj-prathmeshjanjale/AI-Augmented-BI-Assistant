@@ -62,15 +62,27 @@ def export_mysql_to_sqlite():
         mysql_cursor.execute(f"SELECT * FROM `{table}`;")
         rows = mysql_cursor.fetchall()
 
-        # Convert row values (strings/dates)
+        # Convert row values preserving numeric types
         clean_rows = []
         for r in rows:
             clean_r = []
-            for item in r:
+            for col_idx, item in enumerate(r):
                 if item is None:
                     clean_r.append(None)
                 else:
-                    clean_r.append(str(item))
+                    c_type = str(cols_info[col_idx][1]).lower()
+                    if "int" in c_type:
+                        try:
+                            clean_r.append(int(item))
+                        except Exception:
+                            clean_r.append(str(item))
+                    elif "decimal" in c_type or "float" in c_type or "double" in c_type:
+                        try:
+                            clean_r.append(float(item))
+                        except Exception:
+                            clean_r.append(str(item))
+                    else:
+                        clean_r.append(str(item))
             clean_rows.append(clean_r)
 
         if clean_rows:
