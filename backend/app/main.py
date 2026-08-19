@@ -255,6 +255,7 @@ def switch_dataset(request: SwitchDatasetRequest):
 
         SESSION_ACTIVE_MODE[session_id] = "csv"
         SESSION_ACTIVE_TABLE[session_id] = tbl_name
+        SESSION_HISTORY[session_id] = []
         if row:
             SESSION_ACTIVE_FILENAME[session_id] = row[0]
 
@@ -268,6 +269,9 @@ def switch_dataset(request: SwitchDatasetRequest):
 
     elif target_mode == "mysql":
         SESSION_ACTIVE_MODE[session_id] = "mysql"
+        SESSION_ACTIVE_TABLE[session_id] = "uploaded_data"
+        SESSION_ACTIVE_FILENAME[session_id] = None
+        SESSION_HISTORY[session_id] = []
         return {
             "success": True,
             "active_mode": "mysql",
@@ -448,6 +452,7 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default_se
         SESSION_ACTIVE_FILENAME[session_id] = file.filename
         SESSION_ACTIVE_TABLE[session_id] = clean_tbl_name
         SESSION_ACTIVE_MODE[session_id] = "csv"
+        SESSION_HISTORY[session_id] = []
 
         # Wrap UploadFile.file in a UTF-8 text stream reader
         text_stream = codecs.getreader("utf-8-sig")(file.file)
@@ -794,8 +799,19 @@ def ask_question(request: QuestionRequest):
         }
 
     try:
-        history = get_session_history(session_id)
+        raw_history = get_session_history(session_id)
         
+        # Filter history to prevent cross-dataset SQL schema leaks!
+        history = []
+        for h in raw_history:
+            sql_text = h.get("sql", "")
+            if active_mode == "mysql":
+                if "uploaded_data" not in sql_text and not sql_text.startswith("csv_tbl_") and "tax_revenue" not in sql_text:
+                    history.append(h)
+            elif active_mode == "csv":
+                if active_table in sql_text or "uploaded_data" in sql_text:
+                    history.append(h)
+
         augmented_question = question
         if history:
             history_summary = "\n".join([
