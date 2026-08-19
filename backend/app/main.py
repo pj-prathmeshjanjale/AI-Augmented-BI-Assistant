@@ -549,22 +549,25 @@ async def upload_csv(file: UploadFile = File(...), session_id: str = "default_se
 
 def get_default_db_path() -> str:
     possible_paths = [
-        "default_business.db",
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "default_business.db")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "default_business.db")),
         os.path.abspath("default_business.db"),
-        os.path.join(os.path.dirname(__file__), "..", "..", "default_business.db"),
-        os.path.join(os.path.dirname(__file__), "..", "default_business.db"),
+        os.path.abspath("backend/default_business.db"),
         os.path.join(os.path.dirname(__file__), "default_business.db")
     ]
     for p in possible_paths:
-        if os.path.exists(p):
+        if os.path.exists(p) and os.path.getsize(p) > 1000:
             return p
     try:
         from app.database.default_db_seeder import seed_default_business_db
         seed_default_business_db()
-        return "default_business.db"
+        for p in possible_paths:
+            if os.path.exists(p) and os.path.getsize(p) > 1000:
+                return p
+        return possible_paths[0]
     except Exception as seed_err:
         print("Seeder error:", seed_err)
-        return "default_business.db"
+        return possible_paths[0]
 
 
 @app.on_event("startup")
@@ -633,8 +636,6 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
     s = re.sub(r"\bCURRENT_DATE\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bCURRENT_DATE\b", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bNOW\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
-
-    )
 
     return s
 
