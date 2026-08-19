@@ -40,53 +40,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=False,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
-
-
-@app.options("/{full_path:path}")
-async def preflight_options_handler(full_path: str):
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "*",
-            "Access-Control-Allow-Headers": "*",
-        }
-    )
-
-
-@app.middleware("http")
-async def add_cors_headers(request: Request, call_next):
-    if request.method == "OPTIONS":
-        return Response(
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "Access-Control-Allow-Headers": "*",
-            }
-        )
-    try:
-        response = await call_next(request)
-    except Exception as exc:
-        print("Middleware caught exception:", exc)
-        return Response(
-            content=f'{{"detail": "{str(exc)}"}}',
-            status_code=500,
-            media_type="application/json",
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "Access-Control-Allow-Headers": "*",
-            }
-        )
-
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
 
 
 # ==========================================
@@ -315,7 +272,7 @@ def switch_dataset(request: SwitchDatasetRequest):
         raise HTTPException(status_code=400, detail="Invalid dataset mode selection.")
 
 
-@app.delete("/delete_dataset/{dataset_id}")
+@app.delete("/delete_dataset/{dataset_id:path}")
 def delete_dataset(dataset_id: str):
     """Deletes an uploaded CSV dataset table from library and resets active mode if needed."""
     global ACTIVE_DATASET_MODE, ACTIVE_CSV_TABLE, ACTIVE_CSV_FILENAME
