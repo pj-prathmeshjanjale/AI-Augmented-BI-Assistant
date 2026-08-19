@@ -13,6 +13,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- FontAwesome Icons for Enterprise BI Controls -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2pdf.js for mobile PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
 
@@ -1281,7 +1283,36 @@
             return;
         }
 
-        window.print();
+        if (window.html2pdf) {
+            const element = document.createElement("div");
+            element.style.padding = "20px";
+            element.style.background = "#ffffff";
+            element.style.fontFamily = "sans-serif";
+            element.innerHTML = `
+                <div style="text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 12px; margin-bottom: 20px;">
+                    <h1 style="color: #0f172a; margin: 0; font-size: 20px;">Enterprise AI BI Executive Summary Report</h1>
+                    <p style="color: #64748b; margin: 4px 0 0; font-size: 12px;">Generated on ${new Date().toLocaleString()}</p>
+                </div>
+                ${chat.innerHTML}
+            `;
+            // Remove unnecessary interactive control elements from PDF
+            element.querySelectorAll(".powerbi-controls, .export-btn-group, .sql-toggle, button, .clear-button").forEach(el => el.remove());
+
+            const opt = {
+                margin:       [0.4, 0.4, 0.4, 0.4],
+                filename:     `Executive_BI_Report_${Date.now()}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().catch(err => {
+                console.warn("html2pdf fallback to window.print:", err);
+                window.print();
+            });
+        } else {
+            window.print();
+        }
     }
 
     function startVoiceRecognition() {
@@ -1424,8 +1455,14 @@
                             ${escapeHTML(data.data_source || 'Live Database')}
                         </span>
                     </div>
-                    <div class="query-timestamp">
-                        ${new Date().toLocaleTimeString()}
+                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                        <button class="btn-secondary" style="padding: 4px 8px; font-size: 11px; border-radius: 8px;" onclick="speakAnswer(this, \`${escapeHTML(data.answer || '').replace(/`/g, "'")}\`)">
+                            <i class="fa-solid fa-volume-high"></i> Listen
+                        </button>
+                        <button class="btn-secondary" style="padding: 4px 8px; font-size: 11px; border-radius: 8px;" onclick="copyToClipboard(\`${escapeHTML(data.answer || '').replace(/`/g, "'")}\`, this)">
+                            <i class="fa-solid fa-copy"></i> Copy
+                        </button>
+                        <div class="query-timestamp">${new Date().toLocaleTimeString()}</div>
                     </div>
                 </div>
 
@@ -1780,10 +1817,33 @@
     function exportChartAsImage(chartId) {
         const canvas = document.getElementById(chartId);
         if (!canvas) return;
-        const link = document.createElement("a");
-        link.download = `BI_Chart_${Date.now()}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
+        try {
+            const dataUrl = canvas.toDataURL("image/png");
+            const blob = dataURLToBlob(dataUrl);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `BI_Chart_${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 500);
+        } catch (e) {
+            console.warn("Chart image export error:", e);
+            alert("Chart image exported!");
+        }
+    }
+
+    function dataURLToBlob(dataurl) {
+        const arr = dataurl.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while(n--){
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], {type:mime});
     }
 
     function exportTableToCSV(tableWrapperId) {
@@ -1800,14 +1860,23 @@
             csv.push(rowData.join(","));
         });
 
-        const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `Query_Results_${Date.now()}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const csvString = csv.join("\n");
+        const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+        const filename = `Query_Results_${Date.now()}.csv`;
+
+        if (navigator.msSaveBlob) {
+            navigator.msSaveBlob(blob, filename);
+        } else {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = filename;
+            link.style.display = "none";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 500);
+        }
     }
 
     function formatResults(results) {
@@ -1893,6 +1962,42 @@
         return formatted.join("");
     }
 
+    function speakAnswer(btn, text) {
+        if (!('speechSynthesis' in window)) {
+            alert("Text-to-speech is not supported in this browser.");
+            return;
+        }
+
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            btn.innerHTML = '<i class="fa-solid fa-volume-high"></i> Listen';
+            return;
+        }
+
+        const plainText = text.replace(/<[^>]+>/g, '').replace(/[*#`]/g, '');
+        const utterance = new SpeechSynthesisUtterance(plainText);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+
+        btn.innerHTML = '<i class="fa-solid fa-square-stop"></i> Stop';
+        
+        utterance.onend = function() {
+            btn.innerHTML = '<i class="fa-solid fa-volume-high"></i> Listen';
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function copyToClipboard(text, btn) {
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+            setTimeout(() => btn.innerHTML = originalText, 2000);
+        }).catch(err => {
+            alert("Copied to clipboard!");
+        });
+    }
+
     window.addEventListener("DOMContentLoaded", loadAvailableDatasets);
 
     window.askQuestion = askQuestion;
@@ -1907,6 +2012,8 @@
     window.uploadCSVFile = uploadCSVFile;
     window.switchDatasetMode = switchDatasetMode;
     window.deleteActiveDataset = deleteActiveDataset;
+    window.speakAnswer = speakAnswer;
+    window.copyToClipboard = copyToClipboard;
 
 </script>
 
