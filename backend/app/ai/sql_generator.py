@@ -34,7 +34,7 @@ def generate_sql(user_question, history=None, session_id: str = None):
 
     prompt = build_sql_prompt(user_question, session_id=session_id)
 
-    model_name = "openai/gpt-oss-20b"
+    model_name = "groq/compound"
     
     try:
         response = client.chat.completions.create(
@@ -42,7 +42,7 @@ def generate_sql(user_question, history=None, session_id: str = None):
             messages=[
                 {
                     "role": "system",
-                    "content": "You generate safe and correct SQL SELECT queries for analytics."
+                    "content": "You are an expert Data Analyst. You generate safe and correct SQL SELECT queries for analytics. Return ONLY raw SQL query."
                 },
                 {
                     "role": "user",
@@ -54,11 +54,11 @@ def generate_sql(user_question, history=None, session_id: str = None):
     except Exception as e:
         print("Groq API Primary Model Error, using fallback:", e)
         response = client.chat.completions.create(
-            model="groq/compound",
+            model="qwen/qwen3.6-27b",
             messages=[
                 {
                     "role": "system",
-                    "content": "You generate safe and correct SQL SELECT queries for analytics."
+                    "content": "You generate safe and correct SQL SELECT queries for analytics. Return ONLY raw SQL query."
                 },
                 {
                     "role": "user",

@@ -101,10 +101,9 @@ def get_database_schema(session_id: str = None):
             active_table = main_module.get_session_active_table(session_id)
             csv_db_path = main_module.get_session_db_path(session_id)
         else:
-            active_mode = getattr(main_module, 'ACTIVE_DATASET_MODE', 'mysql')
-            active_table = getattr(main_module, 'ACTIVE_CSV_TABLE', 'uploaded_data')
+            active_mode = "mysql"
     except Exception:
-        active_mode = "csv" if os.path.exists(csv_db_path) else "mysql"
+        active_mode = "mysql"
 
     if active_mode == "csv" and os.path.exists(csv_db_path):
         try:

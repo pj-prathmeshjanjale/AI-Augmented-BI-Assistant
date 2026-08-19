@@ -50,7 +50,7 @@ REPLY WITH EXACTLY ONE WORD: CONVERSATIONAL or DATA_QUERY.
 
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
+            model="groq/compound",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=10
@@ -60,7 +60,7 @@ REPLY WITH EXACTLY ONE WORD: CONVERSATIONAL or DATA_QUERY.
         if "CONVERSATIONAL" in intent:
             # Generate intelligent general AI answer from Groq
             gen_response = client.chat.completions.create(
-                model="openai/gpt-oss-20b",
+                model="groq/compound",
                 messages=[
                     {
                         "role": "system",
