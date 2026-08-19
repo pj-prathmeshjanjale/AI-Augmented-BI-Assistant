@@ -1545,21 +1545,6 @@
 
                 <div class="answer-title">Executive Summary</div>
                 <div class="answer-text">${formatExecutiveSummaryText(data.answer || "")}</div>
-
-                ${Array.isArray(data.followup_suggestions) && data.followup_suggestions.length > 0 ? `
-                    <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #cbd5e1;">
-                        <div style="font-size: 11.5px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 8px;">
-                            <i class="fa-solid fa-lightbulb" style="color: #f59e0b;"></i> Suggested Follow-Up Questions:
-                        </div>
-                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            ${data.followup_suggestions.map(s => `
-                                <button class="chip-btn" style="font-size: 12px; padding: 6px 12px; border-radius: 10px;" onclick="sendPreset('${escapeHTML(s).replace(/'/g, "\\'")}')">
-                                    <i class="fa-solid fa-arrow-right" style="color: #2563eb;"></i> ${escapeHTML(s)}
-                                </button>
-                            `).join("")}
-                        </div>
-                    </div>
-                ` : ''}
         `;
 
         if (resolvedChartData && resolvedChartData.values.length > 0) {
@@ -1671,6 +1656,24 @@
                     <i class="fa-solid fa-code"></i> View Generated SQL Query
                 </button>
                 <pre id="${sqlId}" class="sql-code" style="display:none;">${escapeHTML(data.sql)}</pre>
+            `;
+        }
+
+        if (Array.isArray(data.followup_suggestions) && data.followup_suggestions.length > 0) {
+            html += `
+                <div class="followup-suggestions-box" style="margin-top: 24px; padding-top: 16px; border-top: 1px dashed #cbd5e1;">
+                    <div style="font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-lightbulb" style="color: #f59e0b; font-size: 14px;"></i>
+                        <span>Suggested Follow-Up Questions:</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        ${data.followup_suggestions.map(s => `
+                            <button class="chip-btn" style="font-size: 12.5px; padding: 8px 14px; border-radius: 12px; background: #f8fafc; border: 1px solid #cbd5e1; color: #1e293b; transition: all 0.2s;" onclick="sendPreset('${escapeHTML(s).replace(/'/g, "\\'")}')">
+                                <i class="fa-solid fa-arrow-right" style="color: #2563eb;"></i> ${escapeHTML(s)}
+                            </button>
+                        `).join("")}
+                    </div>
+                </div>
             `;
         }
 
