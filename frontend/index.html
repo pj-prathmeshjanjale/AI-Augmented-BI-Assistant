@@ -1441,12 +1441,17 @@
         }
     }
 
+    let isQueryProcessing = false;
+
     function sendPreset(text) {
+        if (isQueryProcessing) return;
         document.getElementById("question").value = text;
         askQuestion();
     }
 
     async function askQuestion() {
+        if (isQueryProcessing) return;
+
         const questionInput = document.getElementById("question");
         const askButton = document.getElementById("askButton");
         const loading = document.getElementById("loading");
@@ -1460,14 +1465,21 @@
             return;
         }
 
+        isQueryProcessing = true;
         error.style.display = "none";
         welcome.style.display = "none";
 
         addUserMessage(question);
         questionInput.value = "";
+        questionInput.disabled = true;
+        questionInput.placeholder = "⌛ AI BI Assistant is generating your answer...";
         questionInput.blur();
+
         loading.style.display = "block";
         askButton.disabled = true;
+        askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+        askButton.style.opacity = "0.6";
+        askButton.style.cursor = "not-allowed";
 
         try {
             const response = await fetch(API_URL, {
@@ -1491,8 +1503,15 @@
             console.error("API ERROR:", errorObject);
             showError(errorObject.message || "Unable to connect to the AI BI Assistant server at " + API_URL);
         } finally {
+            isQueryProcessing = false;
             loading.style.display = "none";
+            questionInput.disabled = false;
+            adaptPlaceholderForScreen();
             askButton.disabled = false;
+            askButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send';
+            askButton.style.opacity = "1";
+            askButton.style.cursor = "pointer";
+            setTimeout(() => questionInput.focus(), 100);
         }
     }
 
@@ -2117,7 +2136,7 @@
     }
 
     function handleChartDrillDown(label, val) {
-        if (!label) return;
+        if (isQueryProcessing || !label) return;
         const cleanLabel = String(label).replace(/\s*\(Forecast\)/i, "").trim();
         let query = `Show detailed breakdown and transactions for ${cleanLabel}`;
         if (cleanLabel.match(/^\d{4}-\d{2}$/)) {
@@ -2127,7 +2146,7 @@
     }
 
     function handleTableDrillDown(columnName, cellValue) {
-        if (!cellValue || String(cellValue).length > 60 || !isNaN(cellValue)) return;
+        if (isQueryProcessing || !cellValue || String(cellValue).length > 60 || !isNaN(cellValue)) return;
         const query = `Show detailed analytics for ${columnName} "${cellValue}"`;
         sendPreset(query);
     }
