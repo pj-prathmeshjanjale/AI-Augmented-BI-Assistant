@@ -588,19 +588,33 @@ def smart_execute_query(sql: str, session_id: str = "default_session"):
         return execute_query(sql)
     except Exception as mysql_err:
         print("MySQL Connection Notice (using cloud default_business.db fallback):", mysql_err)
-        default_db = "default_business.db"
-        if not os.path.exists(default_db):
+        
+        possible_paths = [
+            "default_business.db",
+            "backend/default_business.db",
+            os.path.join(os.path.dirname(__file__), "..", "..", "default_business.db"),
+            os.path.join(os.path.dirname(__file__), "..", "default_business.db")
+        ]
+        
+        target_db = None
+        for p in possible_paths:
+            if os.path.exists(p):
+                target_db = p
+                break
+                
+        if not target_db:
             try:
                 from app.database.default_db_seeder import seed_default_business_db
                 seed_default_business_db()
+                target_db = "default_business.db"
             except Exception as seed_err:
                 print("Seeder error:", seed_err)
 
-        if os.path.exists(default_db):
+        if target_db and os.path.exists(target_db):
             try:
                 # Convert MySQL DATE_FORMAT to SQLite strftime if present
                 sqlite_sql = re.sub(r"DATE_FORMAT\(([^,]+),\s*'([^']+)'\)", r"strftime('\2', \1)", sql, flags=re.IGNORECASE)
-                conn = sqlite3.connect(default_db)
+                conn = sqlite3.connect(target_db)
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(sqlite_sql)
