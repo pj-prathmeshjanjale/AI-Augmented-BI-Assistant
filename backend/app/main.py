@@ -19,6 +19,9 @@ from app.database.query_executor import execute_query
 from app.ai.result_formatter import format_results
 from app.ai.answer_generator import generate_business_answer
 from app.ai.intent_router import classify_intent_and_answer
+from app.rag.rag_chain import generate_rag_sql
+from app.rag.vector_store import get_or_create_vector_store, rebuild_vector_store
+from app.rag.observability import record_rag_telemetry, get_recent_telemetry
 
 
 # ==========================================
@@ -90,6 +93,7 @@ def get_session_active_filename(session_id: str) -> Optional[str]:
 class QuestionRequest(BaseModel):
     question: str = Field(..., example="top 5 most sale product", description="Natural language business question")
     session_id: Optional[str] = Field("default_session", description="Unique session ID for multi-turn conversation memory")
+    include_debug: Optional[bool] = Field(False, description="Enable RAG observability and retrieval debug telemetry")
 
 
 class ClearSessionRequest(BaseModel):
@@ -670,6 +674,12 @@ def get_default_db_path() -> str:
 @app.on_event("startup")
 def startup_event():
     get_default_db_path()
+    try:
+        print("🚀 Initializing FAISS Vector Store on server startup...")
+        get_or_create_vector_store()
+        print("✅ FAISS Vector Store successfully loaded.")
+    except Exception as e:
+        print("⚠️ FAISS startup initialization notice:", e)
 
 
 def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
@@ -927,10 +937,13 @@ def ask_question(request: QuestionRequest):
                     f"Current Follow-up Question: {question}"
                 )
 
-        try:
-            sql = generate_sql(question, history=history, session_id=session_id)
-        except TypeError:
-            sql = generate_sql(augmented_question, session_id=session_id)
+        # Generate SQL via LangChain + FAISS RAG Pipeline
+        sql, debug_info = generate_rag_sql(
+            question=question,
+            history=history,
+            session_id=session_id,
+            include_debug=bool(request.include_debug)
+        )
 
         if not sql:
             raise HTTPException(status_code=500, detail="Failed to generate SQL query for your question.")
@@ -939,10 +952,34 @@ def ask_question(request: QuestionRequest):
 
         is_safe, message = validate_sql(sql)
         if not is_safe:
+            record_rag_telemetry(
+                question=question,
+                active_mode=active_mode,
+                retrieval_ms=debug_info.get("retrieval_time_ms", 0),
+                llm_ms=debug_info.get("llm_time_ms", 0),
+                total_ms=debug_info.get("total_time_ms", 0),
+                retrieved_docs=debug_info.get("retrieved_docs", []),
+                generated_sql=sql,
+                validation_status=f"Unsafe: {message}",
+                execution_success=False,
+                error_message=message
+            )
             raise HTTPException(status_code=400, detail=f"Unsafe SQL query detected: {message}")
 
         guardrail_safe, guardrail_msg = strict_security_guardrail(sql)
         if not guardrail_safe:
+            record_rag_telemetry(
+                question=question,
+                active_mode=active_mode,
+                retrieval_ms=debug_info.get("retrieval_time_ms", 0),
+                llm_ms=debug_info.get("llm_time_ms", 0),
+                total_ms=debug_info.get("total_time_ms", 0),
+                retrieved_docs=debug_info.get("retrieved_docs", []),
+                generated_sql=sql,
+                validation_status=f"Guardrail Block: {guardrail_msg}",
+                execution_success=False,
+                error_message=guardrail_msg
+            )
             raise HTTPException(status_code=403, detail=f"Security Policy Error: {guardrail_msg}")
 
         # Execute query against active mode dataset
@@ -961,13 +998,26 @@ def ask_question(request: QuestionRequest):
 
             save_session_turn(session_id, question, sql, answer)
 
+            record_rag_telemetry(
+                question=question,
+                active_mode=active_mode,
+                retrieval_ms=debug_info.get("retrieval_time_ms", 0),
+                llm_ms=debug_info.get("llm_time_ms", 0),
+                total_ms=debug_info.get("total_time_ms", 0),
+                retrieved_docs=debug_info.get("retrieved_docs", []),
+                generated_sql=sql,
+                validation_status="Safe",
+                execution_success=True,
+                rows_returned=len(formatted_results) if isinstance(formatted_results, list) else 0
+            )
+
             if active_mode == "csv" and os.path.exists(db_path):
                 data_source = f"📁 CSV: {active_filename or 'Uploaded Dataset'}"
             else:
                 data_source = "🗄️ Database: MySQL (business_db)"
 
             followups = generate_smart_followup_suggestions(question, results, active_mode)
-            return {
+            response_payload = {
                 "success": True,
                 "question": question,
                 "session_id": session_id,
@@ -979,6 +1029,10 @@ def ask_question(request: QuestionRequest):
                 "chart": chart,
                 "followup_suggestions": followups
             }
+            if request.include_debug:
+                response_payload["rag_debug"] = debug_info
+
+            return response_payload
 
         except Exception as query_err:
             print("Database Query Execution Warning:", query_err)
@@ -1030,3 +1084,31 @@ def ask_question(request: QuestionRequest):
             ),
             "chart": None
         }
+
+
+# ==========================================
+# RAG MANAGEMENT & OBSERVABILITY ENDPOINTS
+# ==========================================
+
+@app.post("/rag/rebuild")
+def rebuild_rag_index():
+    """Rebuilds the persistent FAISS vector store from domain knowledge documents."""
+    try:
+        vs = rebuild_vector_store()
+        return {
+            "success": True,
+            "message": f"Successfully rebuilt FAISS vector index with {vs.index.ntotal} document vectors."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to rebuild FAISS index: {str(e)}")
+
+
+@app.get("/rag/telemetry")
+def get_rag_telemetry_endpoint(limit: int = 10):
+    """Returns recent RAG retrieval and execution telemetry records for observability."""
+    records = get_recent_telemetry(limit)
+    return {
+        "success": True,
+        "count": len(records),
+        "telemetry": records
+    }
