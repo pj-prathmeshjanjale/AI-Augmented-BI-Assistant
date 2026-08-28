@@ -43,39 +43,39 @@ This platform solves these problems through an isolated, read-only **Retrieval-A
 
 ```mermaid
 flowchart TD
-    User([👤 Business Stakeholder / Analyst]) -->|Natural Language or Voice| UI[🌐 Web BI Dashboard]
-    UI -->|POST /ask| API[⚡ FastAPI Backend Server]
+    User(["👤 Business Stakeholder / Analyst"]) -->|Natural Language or Voice| UI["🌐 Web BI Dashboard"]
+    UI -->|POST /ask| API["⚡ FastAPI Backend Server"]
 
-    API --> Router{🧠 Intent Router}
-    Router -->|Conversational / General| DirectLLM[🤖 Direct LLM Explanation]
-    Router -->|Analytics Question| RAGPipeline[🎯 RAG Execution Engine]
+    API --> Router{"🧠 Intent Router"}
+    Router -->|Conversational / General| DirectLLM["🤖 Direct LLM Explanation"]
+    Router -->|Analytics Question| RAGPipeline["🎯 RAG Execution Engine"]
 
-    subgraph RAG_Layer [LangChain + FAISS RAG Pipeline]
-        KnowledgeBase[(📚 23 Curated Domain Knowledge Documents<br/>- 10 Table Relational Schemas<br/>- Foreign Key Join Paths<br/>- KPI & Revenue Formulas<br/>- SQL Templates & Synonyms)]
-        Embeddings[🔤 HuggingFace all-MiniLM-L6-v2 Embeddings]
-        FAISSStore[(💾 Persisted FAISS Vector Index on Disk)]
+    subgraph RAG_Layer ["LangChain + FAISS RAG Pipeline"]
+        KnowledgeBase[("📚 23 Curated Domain Knowledge Documents<br/>- 10 Table Relational Schemas<br/>- Foreign Key Join Paths<br/>- KPI & Revenue Formulas<br/>- SQL Templates & Synonyms")]
+        Embeddings["🔤 HuggingFace all-MiniLM-L6-v2 Embeddings"]
+        FAISSStore[("💾 Persisted FAISS Vector Index on Disk")]
 
         KnowledgeBase --> Embeddings --> FAISSStore
-        FAISSStore -->|Top-K Similarity Search| Retriever[Semantic Context Retriever]
-        Retriever -->|Dynamic Chunks & Rules| LCELChain[🔗 LangChain LCEL RAG Chain<br/>ChatPromptTemplate | LLM | StrOutputParser]
-        LLMProvider[⚡ LLM Provider: Groq / OpenAI] --> LCELChain
+        FAISSStore -->|Top-K Similarity Search| Retriever["Semantic Context Retriever"]
+        Retriever -->|Dynamic Chunks & Rules| LCELChain["🔗 LangChain LCEL RAG Chain<br/>ChatPromptTemplate &rarr; LLM &rarr; StrOutputParser"]
+        LLMProvider["⚡ LLM Provider: Groq / OpenAI"] --> LCELChain
     end
 
-    LCELChain -->|Synthesized SQL| Sanitizer[🧹 Sanitizer & Fence Cleaner]
-    Sanitizer --> Guardrails{🛡️ SQL Security Guardrails<br/>validate_sql & strict_security_guardrail}
+    LCELChain -->|Synthesized SQL| Sanitizer["🧹 Sanitizer & Fence Cleaner"]
+    Sanitizer --> Guardrails{"🛡️ SQL Security Guardrails<br/>validate_sql & strict_security_guardrail"}
 
-    Guardrails -->|Blocked: DROP, DELETE, Multi-stmt| ErrorResp[❌ 403 Security Policy Blocked]
-    Guardrails -->|Safe: Read-Only SELECT / WITH| ExecEngine{🗄️ Query Execution Engine}
+    Guardrails -->|Blocked: DROP, DELETE, Multi-stmt| ErrorResp["❌ 403 Security Policy Blocked"]
+    Guardrails -->|Safe: Read-Only SELECT / WITH| ExecEngine{"🗄️ Query Execution Engine"}
 
-    ExecEngine -->|MySQL Connection| MySQL[(🐬 MySQL business_db)]
-    ExecEngine -->|Cloud Fallback| SQLite[(📦 default_business.db 10 Tables)]
-    ExecEngine -->|Uploaded CSV| CSVSQLite[(📁 uploaded_dataset.db)]
+    ExecEngine -->|MySQL Connection| MySQL[("🐬 MySQL business_db")]
+    ExecEngine -->|Cloud Fallback| SQLite[("📦 default_business.db 10 Tables")]
+    ExecEngine -->|Uploaded CSV| CSVSQLite[("📁 uploaded_dataset.db")]
 
-    ExecEngine --> Formatter[📊 Result Formatter]
-    Formatter --> AnswerGen[📝 Executive Business Summary]
-    Formatter --> Visuals[📈 Power BI-Style Charts & Drill-Downs]
+    ExecEngine --> Formatter["📊 Result Formatter"]
+    Formatter --> AnswerGen["📝 Executive Business Summary"]
+    Formatter --> Visuals["📈 Power BI-Style Charts & Drill-Downs"]
 
-    AnswerGen --> Response[📦 JSON API Response + Observability Telemetry]
+    AnswerGen --> Response["📦 JSON API Response + Observability Telemetry"]
     Visuals --> Response
     Response --> UI
 ```
