@@ -15,7 +15,7 @@ class RAGTelemetry(BaseModel):
     retrieval_time_ms: float
     llm_time_ms: float
     total_time_ms: float
-    retrieved_documents: List[Dict[str, Any]]
+    retrieved_documents: List[Any] = Field(default_factory=list)
     generated_sql: str
     validation_status: str
     execution_success: bool
@@ -33,7 +33,7 @@ def record_rag_telemetry(
     retrieval_ms: float,
     llm_ms: float,
     total_ms: float,
-    retrieved_docs: List[Dict[str, Any]],
+    retrieved_docs: List[Any],
     generated_sql: str,
     validation_status: str,
     execution_success: bool,
@@ -41,13 +41,23 @@ def record_rag_telemetry(
     error_message: Optional[str] = None
 ) -> RAGTelemetry:
     """Records a single RAG execution event in memory."""
+    # Normalize list of docs whether strings or dicts
+    normalized_docs = []
+    for d in (retrieved_docs or []):
+        if isinstance(d, dict):
+            normalized_docs.append(d)
+        elif isinstance(d, str):
+            normalized_docs.append({"doc_id": d})
+        else:
+            normalized_docs.append({"doc_info": str(d)})
+
     record = RAGTelemetry(
         question=question,
         active_mode=active_mode,
         retrieval_time_ms=round(retrieval_ms, 2),
         llm_time_ms=round(llm_ms, 2),
         total_time_ms=round(total_ms, 2),
-        retrieved_documents=retrieved_docs,
+        retrieved_documents=normalized_docs,
         generated_sql=generated_sql,
         validation_status=validation_status,
         execution_success=execution_success,

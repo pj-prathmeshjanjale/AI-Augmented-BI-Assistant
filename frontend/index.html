@@ -1137,7 +1137,9 @@
 <!-- JAVASCRIPT ENGINE -->
 <script>
 
-    const BASE_API_HOST = "https://ai-bi-assistant-vz0b.onrender.com";
+    const BASE_API_HOST = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:")
+        ? "http://127.0.0.1:8000"
+        : "https://ai-bi-assistant-vz0b.onrender.com";
     const API_URL = `${BASE_API_HOST}/ask`;
     const UPLOAD_URL = `${BASE_API_HOST}/upload_csv`;
 

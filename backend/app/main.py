@@ -675,11 +675,11 @@ def get_default_db_path() -> str:
 def startup_event():
     get_default_db_path()
     try:
-        print("🚀 Initializing FAISS Vector Store on server startup...")
+        print("[INFO] Initializing FAISS Vector Store on server startup...")
         get_or_create_vector_store()
-        print("✅ FAISS Vector Store successfully loaded.")
+        print("[SUCCESS] FAISS Vector Store successfully loaded.")
     except Exception as e:
-        print("⚠️ FAISS startup initialization notice:", e)
+        print("[WARN] FAISS startup initialization notice:", e)
 
 
 def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
@@ -998,18 +998,21 @@ def ask_question(request: QuestionRequest):
 
             save_session_turn(session_id, question, sql, answer)
 
-            record_rag_telemetry(
-                question=question,
-                active_mode=active_mode,
-                retrieval_ms=debug_info.get("retrieval_time_ms", 0),
-                llm_ms=debug_info.get("llm_time_ms", 0),
-                total_ms=debug_info.get("total_time_ms", 0),
-                retrieved_docs=debug_info.get("retrieved_docs", []),
-                generated_sql=sql,
-                validation_status="Safe",
-                execution_success=True,
-                rows_returned=len(formatted_results) if isinstance(formatted_results, list) else 0
-            )
+            try:
+                record_rag_telemetry(
+                    question=question,
+                    active_mode=active_mode,
+                    retrieval_ms=debug_info.get("retrieval_time_ms", 0),
+                    llm_ms=debug_info.get("llm_time_ms", 0),
+                    total_ms=debug_info.get("total_time_ms", 0),
+                    retrieved_docs=debug_info.get("retrieved_docs", []),
+                    generated_sql=sql,
+                    validation_status="Safe",
+                    execution_success=True,
+                    rows_returned=len(formatted_results) if isinstance(formatted_results, list) else 0
+                )
+            except Exception as telem_err:
+                print("[WARN] Telemetry recording notice:", telem_err)
 
             if active_mode == "csv" and os.path.exists(db_path):
                 data_source = f"📁 CSV: {active_filename or 'Uploaded Dataset'}"
