@@ -13,7 +13,7 @@ Do NOT mention SQL, code, databases, or technical backend mechanics. Keep the to
 """
         try:
             res = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 messages=[
                     {"role": "system", "content": "You are an Executive Business Intelligence Analyst."},
                     {"role": "user", "content": empty_prompt}
@@ -46,7 +46,7 @@ FORMAT RULES:
 
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",
