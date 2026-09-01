@@ -131,12 +131,13 @@ def generate_rag_sql(
         # Fallback to direct client invocation
         from app.ai.groq_client import client
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SQL_RAG_SYSTEM_TEMPLATE.format(retrieved_context=retrieved_context)},
                 {"role": "user", "content": f"CONVERSATION HISTORY:\n{history_str}\n\nUSER QUESTION: {question}"}
             ],
-            temperature=0
+            temperature=0,
+            timeout=15.0
         )
         raw_output = response.choices[0].message.content
 
