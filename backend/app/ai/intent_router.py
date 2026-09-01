@@ -56,10 +56,11 @@ REPLY WITH EXACTLY ONE WORD: CONVERSATIONAL or DATA_QUERY.
 
     try:
         response = client.chat.completions.create(
-            model="qwen/qwen3.6-27b",
+            model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=20
+            max_tokens=20,
+            timeout=8.0
         )
         raw_intent = response.choices[0].message.content
         import re
