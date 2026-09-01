@@ -1038,7 +1038,25 @@ def ask_question(request: QuestionRequest):
     if not question:
         raise HTTPException(status_code=400, detail="Please provide a valid business question.")
 
-    # 1. DUAL-MODE INTENT ROUTER (Conversational General AI vs Data Query)
+    # 1. SMART CLARIFICATION & EXECUTIVE GUIDANCE (Handles single ambiguous words like 'compare', 'top', 'overview')
+    clarification = get_clarification(question)
+    if clarification:
+        return {
+            "success": True,
+            "question": question,
+            "session_id": session_id,
+            "clarification": True,
+            "data_source": "💡 Executive Guidance",
+            "active_mode": active_mode,
+            "sql": None,
+            "results": [],
+            "answer": clarification.get("message", "Could you please clarify your question?"),
+            "suggestions": clarification.get("suggestions", []),
+            "followup_suggestions": clarification.get("suggestions", []),
+            "chart": None
+        }
+
+    # 2. DUAL-MODE INTENT ROUTER (Conversational General AI vs Data Query)
     intent_type, gen_ai_answer = classify_intent_and_answer(question)
     if intent_type == "conversational":
         return {
@@ -1050,20 +1068,12 @@ def ask_question(request: QuestionRequest):
             "sql": None,
             "results": [],
             "answer": gen_ai_answer,
-            "chart": None
-        }
-
-    clarification = get_clarification(question)
-    if clarification:
-        return {
-            "success": True,
-            "question": question,
-            "clarification": True,
-            "sql": None,
-            "results": [],
-            "answer": clarification.get("message", "Could you please clarify your question?"),
-            "suggestions": clarification.get("suggestions", []),
-            "chart": None
+            "chart": None,
+            "followup_suggestions": [
+                "What is total revenue across all orders?",
+                "Which region generated the highest revenue?",
+                "what is the calculations of previous month"
+            ]
         }
 
     try:
@@ -1107,6 +1117,27 @@ def ask_question(request: QuestionRequest):
 
         is_safe, message = validate_sql(sql)
         if not is_safe:
+            # If the output was conversational text rather than SQL, return it gracefully
+            if "Only SELECT or WITH queries are allowed" in message:
+                from app.ai.intent_router import _generate_executive_conversational_answer
+                _, conv_answer = _generate_executive_conversational_answer(question)
+                return {
+                    "success": True,
+                    "question": question,
+                    "session_id": session_id,
+                    "data_source": "🤖 Groq AI Engine",
+                    "active_mode": active_mode,
+                    "sql": None,
+                    "results": [],
+                    "answer": conv_answer,
+                    "chart": None,
+                    "followup_suggestions": [
+                        "What is total revenue across all orders?",
+                        "Which region generated the highest revenue?",
+                        "what is the calculations of previous month"
+                    ]
+                }
+
             record_rag_telemetry(
                 question=question,
                 active_mode=active_mode,

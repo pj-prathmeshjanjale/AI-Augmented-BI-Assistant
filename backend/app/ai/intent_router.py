@@ -35,13 +35,19 @@ def classify_intent_and_answer(question: str) -> tuple[str, str | None]:
     if any(k in q_lower for k in data_keywords):
         return "data_query", None
 
-    # 2. Fast LLM Classification Prompt
-    prompt = f"""
-Classify the user's input into exactly one category:
+    # Fast heuristic checks for conversational queries
+    conversational_starters = [
+        "what is ai", "what is machine learning", "what is rag", "what is langchain", 
+        "how does", "how to", "explain", "tell me about", "who is", "why is", "define",
+        "write a python", "write code", "help me"
+    ]
+    if any(q_lower.startswith(s) or q_lower == s for s in conversational_starters):
+        return _generate_executive_conversational_answer(question)
 
-CATEGORIES:
-- CONVERSATIONAL: General greetings, casual small talk, programming questions, general knowledge, jokes, or non-data questions (e.g. "hello", "how to write a python loop", "who is the president", "explain gravity", "what is AI").
-- DATA_QUERY: Questions asking for business metrics, sales, products, customers, counts, totals, averages, rankings, trends, sports medals, or structured data analysis against a database/dataset.
+    # Fast LLM Classification Prompt
+    prompt = f"""Classify the user's input into exactly one category:
+- CONVERSATIONAL: General greetings, concepts, programming, definitions, general knowledge, or conversational chat (e.g. "what is AI", "how to optimize queries", "explain RAG", "who founded Google").
+- DATA_QUERY: Questions asking for business metrics, sales, revenue, orders, customers, products, tables, columns, rankings, totals, or data analysis.
 
 USER INPUT: "{question}"
 
@@ -50,34 +56,52 @@ REPLY WITH EXACTLY ONE WORD: CONVERSATIONAL or DATA_QUERY.
 
     try:
         response = client.chat.completions.create(
-            model="groq/compound",
+            model="qwen/qwen3.6-27b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
-            max_tokens=10
+            max_tokens=20
         )
-        intent = response.choices[0].message.content.strip().upper()
+        raw_intent = response.choices[0].message.content
+        import re
+        clean_intent = re.sub(r'<think>.*?</think>', '', raw_intent, flags=re.DOTALL).strip().upper()
 
-        if "CONVERSATIONAL" in intent:
-            # Generate intelligent general AI answer from Groq
-            gen_response = client.chat.completions.create(
-                model="groq/compound",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful, intelligent AI Assistant & Business Intelligence Expert. Answer the user's question clearly, politely, and directly."
-                    },
-                    {
-                        "role": "user",
-                        "content": question
-                    }
-                ],
-                temperature=0.7
-            )
-            ai_text = gen_response.choices[0].message.content.strip()
-            return "conversational", ai_text
+        if "CONVERSATIONAL" in clean_intent:
+            return _generate_executive_conversational_answer(question)
 
     except Exception as e:
-        print("Intent Router Exception:", e)
+        print("[WARN] Intent Router Exception:", e)
 
     # Default to data_query
     return "data_query", None
+
+
+def _generate_executive_conversational_answer(question: str) -> tuple[str, str]:
+    """Generates a structured, concise executive AI response."""
+    import re
+    try:
+        gen_response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an Executive AI Business Intelligence & Strategy Advisor. "
+                        "When answering general or conceptual questions:\n"
+                        "1. Start with a crisp, 1-2 sentence Executive Overview.\n"
+                        "2. Present key insights, benefits, or mechanisms in 3-4 concise bullet points.\n"
+                        "3. Keep the response executive-ready, polished, structured, and under 200 words without excessive filler."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": question
+                }
+            ],
+            temperature=0.3
+        )
+        ai_text = gen_response.choices[0].message.content
+        ai_text = re.sub(r'<think>.*?</think>', '', ai_text, flags=re.DOTALL).strip()
+        return "conversational", ai_text
+    except Exception as err:
+        print("[WARN] Conversational generation error:", err)
+        return "conversational", f"I am your AI BI Assistant. Please ask a business question about orders, revenue, products, customers, or uploaded datasets!"
