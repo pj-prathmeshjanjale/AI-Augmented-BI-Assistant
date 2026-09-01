@@ -4,8 +4,25 @@ from app.ai.groq_client import client
 
 def generate_business_answer(question, results):
 
-    if not results or results == "No results found.":
-        return "No relevant data found in the dataset for this question. Please try refining your question or filtering criteria."
+    if not results or results == [] or results == "No results found.":
+        empty_prompt = f"""You are an Executive Business Intelligence Analyst.
+The user asked: "{question}"
+However, the database query executed successfully but returned 0 matching records in the active dataset.
+Write a clear, helpful 1-2 sentence executive summary explaining that no matching records were found for this specific query in the current dataset, and recommend exploring broader categories or overall top metrics.
+Do NOT mention SQL, code, databases, or technical backend mechanics. Keep the tone professional, polished, and executive-ready.
+"""
+        try:
+            res = client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[
+                    {"role": "system", "content": "You are an Executive Business Intelligence Analyst."},
+                    {"role": "user", "content": empty_prompt}
+                ],
+                temperature=0
+            )
+            return res.choices[0].message.content.strip()
+        except Exception:
+            return f"No matching records were found in the current dataset for '{question}'. Try searching for broader categories or overall top metrics."
 
     prompt = f"""
 You are an Executive Business Intelligence Analyst.
