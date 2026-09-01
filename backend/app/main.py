@@ -682,13 +682,98 @@ def startup_event():
         print("[WARN] FAISS startup initialization notice:", e)
 
 
+def create_sqlite_connection_with_functions(db_path: str):
+    """Creates a SQLite connection with custom scalar functions matching MySQL capabilities."""
+    import datetime
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    max_date = "2026-08-09"
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT MAX(order_date) FROM orders;")
+        row = cur.fetchone()
+        if row and row[0]:
+            max_date = str(row[0])[:10]
+    except Exception:
+        pass
+
+    def date_format_fn(val, fmt):
+        if not val:
+            return None
+        try:
+            s_val = str(val)[:19]
+            if len(s_val) == 10:
+                dt = datetime.datetime.strptime(s_val, "%Y-%m-%d")
+            else:
+                dt = datetime.datetime.fromisoformat(s_val)
+            py_fmt = fmt.replace("%i", "%M").replace("%s", "%S")
+            return dt.strftime(py_fmt)
+        except Exception:
+            return str(val)
+
+    def curdate_fn():
+        return max_date
+
+    def now_fn():
+        return f"{max_date} 00:00:00"
+
+    def year_fn(val):
+        if not val:
+            return None
+        try:
+            return int(str(val)[:4])
+        except Exception:
+            return None
+
+    def month_fn(val):
+        if not val:
+            return None
+        try:
+            return int(str(val)[5:7])
+        except Exception:
+            return None
+
+    def day_fn(val):
+        if not val:
+            return None
+        try:
+            return int(str(val)[8:10])
+        except Exception:
+            return None
+
+    def datediff_fn(d1, d2):
+        if not d1 or not d2:
+            return None
+        try:
+            dt1 = datetime.date.fromisoformat(str(d1)[:10])
+            dt2 = datetime.date.fromisoformat(str(d2)[:10])
+            return (dt1 - dt2).days
+        except Exception:
+            return 0
+
+    def concat_fn(*args):
+        return "".join(str(a) for a in args if a is not None)
+
+    conn.create_function("DATE_FORMAT", 2, date_format_fn)
+    conn.create_function("CURDATE", 0, curdate_fn)
+    conn.create_function("CURRENT_DATE", 0, curdate_fn)
+    conn.create_function("NOW", 0, now_fn)
+    conn.create_function("YEAR", 1, year_fn)
+    conn.create_function("MONTH", 1, month_fn)
+    conn.create_function("DAY", 1, day_fn)
+    conn.create_function("DAYOFMONTH", 1, day_fn)
+    conn.create_function("DATEDIFF", 2, datediff_fn)
+    conn.create_function("IFNULL", 2, lambda a, b: b if a is None else a)
+    conn.create_function("CONCAT", -1, concat_fn)
+    return conn, max_date
+
+
 def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
-    """Translates MySQL date functions and keywords into SQLite compatible equivalents."""
+    """Translates MySQL date functions and dialect differences into standard SQLite syntax."""
     s = sql
 
     target_db = db_path or get_default_db_path()
-
-    # Dynamically find max date in orders table if present, default to 2026-08-09
     max_date = "2026-08-09"
     if target_db and os.path.exists(target_db):
         try:
@@ -702,35 +787,49 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
         except Exception:
             pass
 
-    # 1. Convert nested DATE_FORMAT(DATE_SUB(...), '%Y-%m') expressions first
+    # 1. Replace (CURDATE()|CURRENT_DATE|NOW()) - INTERVAL N (MONTH|DAY|YEAR) with date(...)
     s = re.sub(
-        r"DATE_FORMAT\(\s*DATE_SUB\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)\s*,\s*'([^']+)'\s*\)",
-        r"strftime('\4', date('" + max_date + r"', '-\2 \3'))",
-        s,
-        flags=re.IGNORECASE
-    )
-    s = re.sub(
-        r"DATE_FORMAT\(\s*DATE_ADD\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)\s*,\s*'([^']+)'\s*\)",
-        r"strftime('\4', date('" + max_date + r"', '+\2 \3'))",
-        s,
-        flags=re.IGNORECASE
-    )
-
-    # 2. Convert standalone DATE_SUB / DATE_ADD
-    s = re.sub(
-        r"DATE_SUB\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
+        r"(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|NOW\(\))\s*-\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR|HOUR|WEEK|QUARTER)",
         r"date('" + max_date + r"', '-\2 \3')",
         s,
         flags=re.IGNORECASE
     )
     s = re.sub(
-        r"DATE_ADD\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE)\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR)\s*\)",
+        r"(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|NOW\(\))\s*\+\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR|HOUR|WEEK|QUARTER)",
         r"date('" + max_date + r"', '+\2 \3')",
         s,
         flags=re.IGNORECASE
     )
 
-    # 3. Convert DATE_FORMAT(col, fmt) -> strftime(fmt, col)
+    # 2. DATE_SUB / DATE_ADD with intervals
+    s = re.sub(
+        r"DATE_SUB\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|NOW\(\))\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR|HOUR|WEEK|QUARTER)\s*\)",
+        r"date('" + max_date + r"', '-\2 \3')",
+        s,
+        flags=re.IGNORECASE
+    )
+    s = re.sub(
+        r"DATE_ADD\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|NOW\(\))\s*,\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR|HOUR|WEEK|QUARTER)\s*\)",
+        r"date('" + max_date + r"', '+\2 \3')",
+        s,
+        flags=re.IGNORECASE
+    )
+
+    # 3. DATE_FORMAT(expr, '%Y-%m-01') -> strftime('%Y-%m-01', expr)
+    s = re.sub(
+        r"DATE_FORMAT\(\s*date\(([^)]+)\)\s*,\s*'%Y-%m-01'\s*\)",
+        r"strftime('%Y-%m-01', date(\1))",
+        s,
+        flags=re.IGNORECASE
+    )
+    s = re.sub(
+        r"DATE_FORMAT\(\s*(CURDATE\(\)|CURRENT_DATE\(\)|CURRENT_DATE|NOW\(\))\s*,\s*'%Y-%m-01'\s*\)",
+        r"strftime('%Y-%m-01', '" + max_date + r"')",
+        s,
+        flags=re.IGNORECASE
+    )
+
+    # 4. Standard DATE_FORMAT(col, fmt) -> strftime(fmt, col)
     s = re.sub(
         r"DATE_FORMAT\(\s*([a-zA-Z0-9_\.]+)\s*,\s*'([^']+)'\s*\)",
         r"strftime('\2', \1)",
@@ -738,13 +837,56 @@ def convert_mysql_sql_to_sqlite(sql: str, db_path: str = None) -> str:
         flags=re.IGNORECASE
     )
 
-    # 4. Replace CURDATE() / CURRENT_DATE / NOW()
+    # 5. Generic col - INTERVAL N unit
+    s = re.sub(
+        r"([a-zA-Z0-9_\.]+)\s*-\s*INTERVAL\s+(\d+)\s+(MONTH|DAY|YEAR|HOUR|WEEK|QUARTER)",
+        r"date(\1, '-\2 \3')",
+        s,
+        flags=re.IGNORECASE
+    )
+
+    # 6. IFNULL(a, b) -> COALESCE(a, b)
+    s = re.sub(r"\bIFNULL\s*\(", "COALESCE(", s, flags=re.IGNORECASE)
+
+    # 7. Replace CURDATE() / CURRENT_DATE / NOW() with max_date string
     s = re.sub(r"\bCURDATE\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bCURRENT_DATE\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bCURRENT_DATE\b", f"'{max_date}'", s, flags=re.IGNORECASE)
     s = re.sub(r"\bNOW\(\)", f"'{max_date}'", s, flags=re.IGNORECASE)
 
     return s
+
+
+def attempt_sql_auto_repair(failed_sql: str, error_msg: str, user_question: str = "") -> Optional[str]:
+    """Autonomous self-healing loop: asks LLM to fix syntax or dialect error in failed SQL."""
+    try:
+        from app.ai.groq_client import client
+        from app.rag.rag_chain import clean_sql_output
+        repair_prompt = f"""You are an expert SQL engineer. A SQL query failed execution with the following database error.
+USER QUESTION: {user_question}
+FAILED SQL QUERY:
+{failed_sql}
+
+DATABASE ERROR:
+{error_msg}
+
+TASK:
+Provide ONLY the corrected, valid read-only SQL query that answers the user question without error.
+Use ONLY SELECT statements. Do NOT include markdown, explanations, or think tags. Return ONLY raw SQL.
+"""
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": "You are a SQL repair engine. Return ONLY the corrected raw SQL query."},
+                {"role": "user", "content": repair_prompt}
+            ],
+            temperature=0
+        )
+        repaired = clean_sql_output(response.choices[0].message.content)
+        return repaired if repaired else None
+    except Exception as rep_err:
+        print("[WARN] SQL auto-repair error:", rep_err)
+        return None
 
 
 def generate_smart_followup_suggestions(question: str, results=None, active_mode: str = "mysql", session_id: str = "default_session") -> list:
@@ -784,8 +926,8 @@ def generate_smart_followup_suggestions(question: str, results=None, active_mode
 # SMART QUERY EXECUTOR
 # ==========================================
 
-def smart_execute_query(sql: str, session_id: str = "default_session"):
-    """Executes query against selected active dataset for this isolated session (CSV SQLite or MySQL)."""
+def smart_execute_query(sql: str, session_id: str = "default_session", user_question: str = ""):
+    """Executes query against selected active dataset with multi-engine fallback and auto-repair."""
     db_path = get_session_db_path(session_id)
     active_mode = get_session_active_mode(session_id)
     active_table = get_session_active_table(session_id)
@@ -796,8 +938,7 @@ def smart_execute_query(sql: str, session_id: str = "default_session"):
             if active_table and active_table != "uploaded_data":
                 exec_sql = re.sub(r'\buploaded_data\b', f"`{active_table}`", sql, flags=re.IGNORECASE)
 
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
+            conn, _ = create_sqlite_connection_with_functions(db_path)
             cursor = conn.cursor()
             cursor.execute(exec_sql)
             rows = cursor.fetchall()
@@ -809,8 +950,7 @@ def smart_execute_query(sql: str, session_id: str = "default_session"):
         except Exception as e:
             print("SQLite query error, attempting fallback on uploaded_data:", e)
             try:
-                conn = sqlite3.connect(db_path)
-                conn.row_factory = sqlite3.Row
+                conn, _ = create_sqlite_connection_with_functions(db_path)
                 cursor = conn.cursor()
                 cursor.execute(sql)
                 rows = cursor.fetchall()
@@ -825,21 +965,21 @@ def smart_execute_query(sql: str, session_id: str = "default_session"):
     try:
         return execute_query(sql)
     except Exception as mysql_err:
-        print("MySQL Connection Notice (using cloud default_business.db fallback):", mysql_err)
-        
+        print("[INFO] Executing on default_business.db SQLite engine (MySQL notice:", str(mysql_err)[:60], ")")
+
         possible_paths = [
             "default_business.db",
             "backend/default_business.db",
             os.path.join(os.path.dirname(__file__), "..", "..", "default_business.db"),
             os.path.join(os.path.dirname(__file__), "..", "default_business.db")
         ]
-        
+
         target_db = None
         for p in possible_paths:
             if os.path.exists(p):
                 target_db = p
                 break
-                
+
         if not target_db:
             try:
                 from app.database.default_db_seeder import seed_default_business_db
@@ -849,10 +989,9 @@ def smart_execute_query(sql: str, session_id: str = "default_session"):
                 print("Seeder error:", seed_err)
 
         if target_db and os.path.exists(target_db):
+            sqlite_sql = convert_mysql_sql_to_sqlite(sql, target_db)
             try:
-                sqlite_sql = convert_mysql_sql_to_sqlite(sql, target_db)
-                conn = sqlite3.connect(target_db)
-                conn.row_factory = sqlite3.Row
+                conn, _ = create_sqlite_connection_with_functions(target_db)
                 cursor = conn.cursor()
                 cursor.execute(sqlite_sql)
                 rows = cursor.fetchall()
@@ -861,7 +1000,23 @@ def smart_execute_query(sql: str, session_id: str = "default_session"):
                     return "No results found."
                 return [dict(r) for r in rows]
             except Exception as sqlite_err:
-                print("Default SQLite fallback execution error:", sqlite_err)
+                print("[WARN] Direct SQLite execution notice:", sqlite_err)
+                # Attempt autonomous self-healing / auto-repair
+                if user_question:
+                    repaired_sql = attempt_sql_auto_repair(sqlite_sql, str(sqlite_err), user_question)
+                    if repaired_sql:
+                        print("[INFO] Attempting execution with auto-repaired SQL:", repaired_sql)
+                        try:
+                            conn, _ = create_sqlite_connection_with_functions(target_db)
+                            cursor = conn.cursor()
+                            cursor.execute(repaired_sql)
+                            rows = cursor.fetchall()
+                            conn.close()
+                            if not rows:
+                                return "No results found."
+                            return [dict(r) for r in rows]
+                        except Exception as rep_exec_err:
+                            print("[WARN] Repaired SQL execution notice:", rep_exec_err)
 
         raise mysql_err
 
@@ -984,7 +1139,7 @@ def ask_question(request: QuestionRequest):
 
         # Execute query against active mode dataset
         try:
-            results = smart_execute_query(sql, session_id=session_id)
+            results = smart_execute_query(sql, session_id=session_id, user_question=question)
 
             chart = None
             if should_generate_chart(question):

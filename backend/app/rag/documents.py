@@ -454,6 +454,47 @@ def get_knowledge_documents() -> List[Document]:
                 "topic": "sales_trends",
                 "source": "sql_benchmarks"
             }
+        },
+        {
+            "content": (
+                "SQL TEMPLATE: Previous month sales & calculations\n"
+                "QUESTION: 'what is the calculations of previous month' / 'last month sales' / 'previous month revenue'\n"
+                "SQL QUERY:\n"
+                "SELECT \n"
+                "    DATE_FORMAT(o.order_date, '%Y-%m') AS order_month,\n"
+                "    ROUND(SUM(oi.quantity * oi.unit_price), 2) AS total_revenue,\n"
+                "    COUNT(DISTINCT o.order_id) AS total_orders,\n"
+                "    COUNT(DISTINCT o.customer_id) AS active_customers,\n"
+                "    ROUND(SUM(oi.quantity * oi.unit_price) / COUNT(DISTINCT o.order_id), 2) AS average_order_value\n"
+                "FROM orders o\n"
+                "JOIN order_items oi ON o.order_id = oi.order_id\n"
+                "WHERE DATE_FORMAT(o.order_date, '%Y-%m') = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m')\n"
+                "GROUP BY DATE_FORMAT(o.order_date, '%Y-%m');"
+            ),
+            "metadata": {
+                "doc_id": "sql_template_previous_month",
+                "doc_type": "sql_example",
+                "table": "orders",
+                "topic": "time_based_analytics",
+                "source": "sql_benchmarks"
+            }
+        },
+        {
+            "content": (
+                "DATE & TIME FILTERING BEST PRACTICES:\n"
+                "- Previous month: DATE_FORMAT(order_date, '%Y-%m') = DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m')\n"
+                "- Current month: DATE_FORMAT(order_date, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')\n"
+                "- Last 30 days: order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)\n"
+                "- Specific year: YEAR(order_date) = 2024 or strftime('%Y', order_date) = '2024'\n"
+                "- Note: CURDATE() automatically references the current active transaction date."
+            ),
+            "metadata": {
+                "doc_id": "kpi_time_series_filtering",
+                "doc_type": "business_rule",
+                "table": "orders",
+                "topic": "date_time_rules",
+                "source": "analytics_standards"
+            }
         }
     ]
 
