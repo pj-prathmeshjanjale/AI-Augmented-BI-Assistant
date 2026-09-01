@@ -13,12 +13,13 @@ Do NOT mention SQL, code, databases, or technical backend mechanics. Keep the to
 """
         try:
             res = client.chat.completions.create(
-                model="openai/gpt-oss-120b",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": "You are an Executive Business Intelligence Analyst."},
                     {"role": "user", "content": empty_prompt}
                 ],
-                temperature=0
+                temperature=0,
+                timeout=15.0
             )
             return res.choices[0].message.content.strip()
         except Exception:
@@ -45,7 +46,7 @@ FORMAT RULES:
 
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
@@ -56,7 +57,8 @@ FORMAT RULES:
                     "content": prompt
                 }
             ],
-            temperature=0
+            temperature=0,
+            timeout=15.0
         )
         return response.choices[0].message.content.strip()
     except Exception as e1:

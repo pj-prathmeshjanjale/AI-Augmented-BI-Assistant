@@ -10,6 +10,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Restrict PyTorch CPU threads for lightweight memory usage on cloud containers
+try:
+    import torch
+    torch.set_num_threads(1)
+except Exception:
+    pass
+
 # Global cached embedding instance
 _CACHED_EMBEDDINGS = None
 

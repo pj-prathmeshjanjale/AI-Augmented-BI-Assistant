@@ -44,14 +44,15 @@ def get_llm(
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY not found in environment variables or .env file.")
 
-    target_model = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+    target_model = model_name or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
     try:
         from langchain_groq import ChatGroq
         return ChatGroq(
             model=target_model,
             groq_api_key=groq_api_key,
-            temperature=temperature
+            temperature=temperature,
+            request_timeout=25.0
         )
     except Exception as e:
         print(f"⚠️ Primary ChatGroq model '{target_model}' error: {e}. Trying fallback...")
@@ -60,14 +61,16 @@ def get_llm(
             return ChatGroq(
                 model="qwen/qwen3.6-27b",
                 groq_api_key=groq_api_key,
-                temperature=temperature
+                temperature=temperature,
+                request_timeout=25.0
             )
         except Exception as e2:
             print(f"⚠️ Secondary ChatGroq fallback error: {e2}. Trying OpenAI compatible endpoint...")
             from langchain_openai import ChatOpenAI
             return ChatOpenAI(
-                model="openai/gpt-oss-20b",
+                model="openai/gpt-oss-120b",
                 base_url="https://api.groq.com/openai/v1",
                 api_key=groq_api_key,
-                temperature=temperature
+                temperature=temperature,
+                timeout=25.0
             )
