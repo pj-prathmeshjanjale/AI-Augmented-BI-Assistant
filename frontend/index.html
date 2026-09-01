@@ -1118,7 +1118,7 @@
         <div class="input-container">
             <textarea id="question" placeholder="Ask a business question (or click 🎙️ microphone to speak)..." rows="1"></textarea>
             
-            <button class="clear-button" id="micBtn" onclick="startVoiceRecognition()" title="Click to speak your question">
+            <button class="clear-button" id="micBtn" onclick="toggleVoiceRecognition()" title="Click to speak your question">
                 <i class="fa-solid fa-microphone" id="micIcon" style="color: #2563eb;"></i>
             </button>
 
@@ -1427,10 +1427,38 @@
         }, 250);
     }
 
+    // =========================================================================
+    // VOICE SPEECH RECOGNITION ENGINE (STATE MACHINE & LIFECYCLE MANAGEMENT)
+    // =========================================================================
+    let activeVoiceRecognition = null;
+    let isVoiceListening = false;
+
+    function toggleVoiceRecognition() {
+        if (isVoiceListening) {
+            stopVoiceRecognition();
+        } else {
+            startVoiceRecognition();
+        }
+    }
+
     function startVoiceRecognition() {
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
             alert("Voice recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
             return;
+        }
+
+        // Clean up any existing active instance safely before re-instantiating
+        if (activeVoiceRecognition) {
+            try {
+                activeVoiceRecognition.onstart = null;
+                activeVoiceRecognition.onresult = null;
+                activeVoiceRecognition.onerror = null;
+                activeVoiceRecognition.onend = null;
+                activeVoiceRecognition.abort();
+            } catch (e) {
+                console.warn("Cleanup previous speech recognition error:", e);
+            }
+            activeVoiceRecognition = null;
         }
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1438,42 +1466,78 @@
 
         recognition.lang = 'en-US';
         recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.continuous = false;
 
-        const micBtn = document.getElementById("micBtn");
-        const micIcon = document.getElementById("micIcon");
-
-        micBtn.style.background = "#fee2e2";
-        micBtn.style.borderColor = "#ef4444";
-        micIcon.className = "fa-solid fa-microphone-lines fa-bounce";
-        micIcon.style.color = "#ef4444";
+        recognition.onstart = function() {
+            isVoiceListening = true;
+            setMicListeningUI(true);
+        };
 
         recognition.onresult = function(event) {
-            const transcript = event.results[0][0].transcript;
-            document.getElementById("question").value = transcript;
-            resetMicUI();
-            askQuestion();
+            if (event.results && event.results[0] && event.results[0][0]) {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById("question").value = transcript;
+                resetMicState();
+                askQuestion();
+            }
         };
 
         recognition.onerror = function(event) {
-            console.warn("Speech recognition error:", event.error);
-            resetMicUI();
+            console.warn("Speech recognition notice/error:", event.error);
+            if (event.error === 'not-allowed') {
+                alert("Microphone access was denied. Please allow microphone permissions in your browser settings.");
+            }
+            resetMicState();
         };
 
         recognition.onend = function() {
-            resetMicUI();
+            resetMicState();
         };
 
-        recognition.start();
+        try {
+            activeVoiceRecognition = recognition;
+            recognition.start();
+        } catch (err) {
+            console.error("Failed to start voice recognition:", err);
+            resetMicState();
+        }
     }
 
-    function resetMicUI() {
+    function stopVoiceRecognition() {
+        if (activeVoiceRecognition) {
+            try {
+                activeVoiceRecognition.stop();
+            } catch (e) {
+                try { activeVoiceRecognition.abort(); } catch (e2) {}
+            }
+        }
+        resetMicState();
+    }
+
+    function resetMicState() {
+        isVoiceListening = false;
+        activeVoiceRecognition = null;
+        setMicListeningUI(false);
+    }
+
+    function setMicListeningUI(isListening) {
         const micBtn = document.getElementById("micBtn");
         const micIcon = document.getElementById("micIcon");
         if (micBtn && micIcon) {
-            micBtn.style.background = "white";
-            micBtn.style.borderColor = "#cbd5e1";
-            micIcon.className = "fa-solid fa-microphone";
-            micIcon.style.color = "#2563eb";
+            if (isListening) {
+                micBtn.style.background = "#fee2e2";
+                micBtn.style.borderColor = "#ef4444";
+                micBtn.title = "Listening... Click to stop speaking";
+                micIcon.className = "fa-solid fa-microphone-lines fa-bounce";
+                micIcon.style.color = "#ef4444";
+            } else {
+                micBtn.style.background = "white";
+                micBtn.style.borderColor = "#cbd5e1";
+                micBtn.title = "Click to speak your question";
+                micIcon.className = "fa-solid fa-microphone";
+                micIcon.style.color = "#2563eb";
+            }
         }
     }
 
