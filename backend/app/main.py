@@ -58,9 +58,9 @@ SESSIONS_DIR = "sessions"
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 
 CSV_DB_PATH = "uploaded_dataset.db"
-ACTIVE_DATASET_MODE = "csv" if os.path.exists(CSV_DB_PATH) else "mysql"
+ACTIVE_DATASET_MODE = "mysql"
 ACTIVE_CSV_TABLE = "uploaded_data"
-ACTIVE_CSV_FILENAME = "DF_final_feature.csv" if os.path.exists(CSV_DB_PATH) else None
+ACTIVE_CSV_FILENAME = None
 
 SESSION_ACTIVE_MODE: Dict[str, str] = {}
 SESSION_ACTIVE_TABLE: Dict[str, str] = {}
@@ -73,9 +73,7 @@ def get_session_db_path(session_id: str) -> str:
 
 
 def get_session_active_mode(session_id: str) -> str:
-    db_path = get_session_db_path(session_id)
-    default_mode = "csv" if os.path.exists(db_path) else "mysql"
-    return SESSION_ACTIVE_MODE.get(session_id, default_mode)
+    return SESSION_ACTIVE_MODE.get(session_id, "mysql")
 
 
 def get_session_active_table(session_id: str) -> str:

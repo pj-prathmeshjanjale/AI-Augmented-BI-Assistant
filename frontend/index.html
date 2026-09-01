@@ -1066,8 +1066,7 @@
             <div class="dataset-selector-box">
                 <label style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase;"><i class="fa-solid fa-layer-group"></i> Active Dataset:</label>
                 <select id="datasetSelector" class="control-select" style="background: white; border: none; font-size: 12px; font-weight: 700; color: #0f172a; cursor: pointer;" onchange="switchDatasetMode(this.value)">
-                    <option value="mysql">🗄️ MySQL Database (business_db)</option>
-                    <option value="csv" selected>📁 CSV: DF_final_feature.csv</option>
+                    <option value="mysql" selected>🗄️ MySQL Database (business_db)</option>
                 </select>
                 <button id="btnDeleteDataset" onclick="deleteActiveDataset()" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 4px 8px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer;" title="Delete selected dataset from library">
                     <i class="fa-solid fa-trash-can"></i>
@@ -1578,8 +1577,8 @@
         loading.style.display = "block";
         askButton.disabled = true;
         askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
-        askButton.style.opacity = "0.6";
-        askButton.style.cursor = "not-allowed";
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000);
 
         try {
             const response = await fetch(API_URL, {
@@ -1588,8 +1587,10 @@
                 body: JSON.stringify({
                     question: question,
                     session_id: currentSessionId
-                })
+                }),
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
 
             const data = await response.json();
 
@@ -1600,8 +1601,12 @@
             addAIMessage(data);
 
         } catch (errorObject) {
+            clearTimeout(timeoutId);
             console.error("API ERROR:", errorObject);
-            showError(errorObject.message || "Unable to connect to the AI BI Assistant server at " + API_URL);
+            const msg = errorObject.name === "AbortError"
+                ? "The backend server is waking up from sleep. Please wait a few seconds and try again."
+                : (errorObject.message || "Unable to connect to the AI BI Assistant server at " + API_URL);
+            showError(msg);
         } finally {
             isQueryProcessing = false;
             loading.style.display = "none";
