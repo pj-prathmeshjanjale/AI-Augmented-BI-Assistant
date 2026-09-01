@@ -671,15 +671,26 @@ def get_default_db_path() -> str:
         return possible_paths[0]
 
 
+import threading
+
+def _async_warmup():
+    """Asynchronously prepares default database and warms up FAISS vector store in background."""
+    try:
+        get_default_db_path()
+    except Exception as db_err:
+        print("[WARN] Background DB warmup notice:", db_err)
+    try:
+        print("[INFO] Background FAISS Vector Store warmup starting...")
+        get_or_create_vector_store()
+        print("[SUCCESS] Background FAISS Vector Store ready.")
+    except Exception as faiss_err:
+        print("[WARN] Background FAISS warmup notice:", faiss_err)
+
+
 @app.on_event("startup")
 def startup_event():
-    get_default_db_path()
-    try:
-        print("[INFO] Initializing FAISS Vector Store on server startup...")
-        get_or_create_vector_store()
-        print("[SUCCESS] FAISS Vector Store successfully loaded.")
-    except Exception as e:
-        print("[WARN] FAISS startup initialization notice:", e)
+    # Non-blocking background warmup allows Uvicorn to bind to $PORT immediately
+    threading.Thread(target=_async_warmup, daemon=True).start()
 
 
 def create_sqlite_connection_with_functions(db_path: str):
