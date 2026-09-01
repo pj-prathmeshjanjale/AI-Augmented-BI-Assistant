@@ -40,9 +40,9 @@ def get_llm(
                 print(f"⚠️ Failed to initialize ChatOpenAI ({e}), falling back to Groq.")
 
     # 2. GROQ PROVIDER (DEFAULT)
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if not groq_api_key:
-        raise ValueError("GROQ_API_KEY not found in environment variables or .env file.")
+    groq_api_key = os.getenv("GROQ_API_KEY") or "gsk_placeholder_key"
+    if not os.getenv("GROQ_API_KEY"):
+        print("⚠️ Warning: GROQ_API_KEY not found in environment variables. Please add GROQ_API_KEY to your Render environment settings.")
 
     target_model = model_name or os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 

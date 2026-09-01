@@ -16,7 +16,10 @@ if os.path.exists(root_env):
 api_key = os.getenv("GROQ_API_KEY")
 
 if not api_key:
-    raise ValueError("GROQ_API_KEY not found in environment or .env file")
-
-
-client = Groq(api_key=api_key)
+    print("[WARN] GROQ_API_KEY not found in environment. Please configure GROQ_API_KEY in your cloud environment settings.")
+    try:
+        client = Groq(api_key="gsk_placeholder_key")
+    except Exception:
+        client = None
+else:
+    client = Groq(api_key=api_key)
