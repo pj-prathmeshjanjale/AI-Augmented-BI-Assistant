@@ -1312,3 +1312,10 @@ def get_rag_telemetry_endpoint(limit: int = 10):
         "count": len(records),
         "telemetry": records
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    print(f"[INFO] Running FastAPI on 0.0.0.0:{port}...")
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, log_level="info")
