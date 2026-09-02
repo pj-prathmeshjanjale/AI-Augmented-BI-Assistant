@@ -165,7 +165,7 @@ def strict_security_guardrail(sql_query: str) -> tuple[bool, str]:
 # SYSTEM & HEALTH ENDPOINTS
 # ==========================================
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def home():
     return {
         "status": "online",
@@ -173,6 +173,12 @@ def home():
         "version": "1.6.0",
         "documentation": "/docs"
     }
+
+
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"])
+def favicon():
+    from fastapi.responses import Response
+    return Response(status_code=204)
 
 
 @app.get("/health")
