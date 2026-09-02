@@ -1,21 +1,40 @@
+﻿# ============================================================
+# AI Augmented BI Assistant - Production Requirements
+# Memory-optimised for Render free tier (512MB RAM)
+# ============================================================
+
+# API Framework
 fastapi>=0.110.0
 uvicorn>=0.28.0
 pydantic>=2.7.0
+python-multipart>=0.0.9
+
+# Environment & Utilities
 python-dotenv>=1.0.0
+requests>=2.31.0
+openpyxl>=3.1.2
+
+# Database
 mysql-connector-python>=8.3.0
+SQLAlchemy>=2.0.0
+
+# Data Processing
 pandas>=2.2.0
 numpy>=1.26.0
-SQLAlchemy>=2.0.0
+
+# AI / LLM (Groq API — no local model loading)
 groq>=0.9.0
-openai>=1.20.0
+
+# LangChain (core only — no heavy extras)
 langchain>=0.2.0
 langchain-core>=0.2.0
 langchain-community>=0.2.0
 langchain-groq>=0.1.5
-langchain-openai>=0.1.7
-langchain-huggingface>=0.0.3
+
+# Vector Store (CPU FAISS — lightweight, no GPU)
 faiss-cpu>=1.8.0
-sentence-transformers>=3.0.0
-python-multipart>=0.0.9
-requests>=2.31.0
-openpyxl>=3.1.2
+
+# NOTE: sentence-transformers, torch, langchain-huggingface, langchain-openai
+# are NOT required. Embeddings use LightweightTFIDFEmbeddings (pure numpy).
+# To enable HuggingFace embeddings, add: sentence-transformers>=3.0.0 and
+# set EMBEDDING_PROVIDER=huggingface in your environment.
