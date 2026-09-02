@@ -693,6 +693,17 @@ def _async_warmup():
 
 @app.on_event("startup")
 def startup_event():
+    # Diagnostic: print working directory and key file locations at startup
+    print(f"[STARTUP] Working directory: {os.getcwd()}")
+    print(f"[STARTUP] __file__ location: {os.path.abspath(__file__)}")
+    _here = os.path.dirname(os.path.abspath(__file__))
+    for candidate in [
+        os.path.normpath(os.path.join(_here, "..", "..", "default_business.db")),
+        os.path.normpath(os.path.join(_here, "..", "default_business.db")),
+    ]:
+        exists = os.path.exists(candidate)
+        size = os.path.getsize(candidate) if exists else 0
+        print(f"[STARTUP] SQLite candidate: {candidate} | exists={exists} | size={size}")
     # Non-blocking background warmup allows Uvicorn to bind to $PORT immediately
     threading.Thread(target=_async_warmup, daemon=True).start()
 
@@ -980,19 +991,24 @@ def smart_execute_query(sql: str, session_id: str = "default_session", user_ques
     try:
         return execute_query(sql)
     except Exception as mysql_err:
-        print("[INFO] Executing on default_business.db SQLite engine (MySQL notice:", str(mysql_err)[:60], ")")
+        print("[INFO] MySQL unavailable, falling back to default_business.db SQLite engine:", str(mysql_err)[:80])
 
+        # Resolve absolute paths regardless of working directory (important for Render cloud)
+        _here = os.path.dirname(os.path.abspath(__file__))
         possible_paths = [
-            "default_business.db",
-            "backend/default_business.db",
-            os.path.join(os.path.dirname(__file__), "..", "..", "default_business.db"),
-            os.path.join(os.path.dirname(__file__), "..", "default_business.db")
+            os.path.join(_here, "..", "..", "default_business.db"),   # root/default_business.db
+            os.path.join(_here, "..", "default_business.db"),          # backend/default_business.db
+            os.path.join(_here, "default_business.db"),                # backend/app/default_business.db
+            os.path.abspath("default_business.db"),                    # CWD fallback
+            os.path.abspath("backend/default_business.db"),            # CWD/backend fallback
         ]
 
         target_db = None
         for p in possible_paths:
-            if os.path.exists(p):
-                target_db = p
+            resolved = os.path.normpath(p)
+            if os.path.exists(resolved):
+                target_db = resolved
+                print(f"[INFO] Using SQLite database: {target_db}")
                 break
 
         if not target_db:

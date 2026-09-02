@@ -1542,11 +1542,19 @@
     }
 
     let isQueryProcessing = false;
+    let _wakeUpPingInterval = null;
 
     function sendPreset(text) {
         if (isQueryProcessing) return;
         document.getElementById("question").value = text;
         askQuestion();
+    }
+
+    // Ping the backend to wake it from sleep before the real query
+    async function wakeUpBackend() {
+        try {
+            await fetch(`${BASE_API_HOST}/health`, { method: "GET", signal: AbortSignal.timeout(8000) });
+        } catch (_) { /* ignore — just pinging */ }
     }
 
     async function askQuestion() {
@@ -1578,47 +1586,89 @@
         loading.style.display = "block";
         askButton.disabled = true;
         askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000);
 
-        try {
-            const response = await fetch(API_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    question: question,
-                    session_id: currentSessionId
-                }),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
+        // --- RETRY LOOP: attempt up to 2 times (handles cold start) ---
+        const MAX_ATTEMPTS = 2;
+        const TIMEOUT_MS = 120000; // 120 seconds (handles Render free-tier cold start ~50s)
+        let lastError = null;
 
-            const data = await response.json();
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-            if (!response.ok) {
-                throw new Error(data.detail || "Something went wrong.");
+            // Update status for user on retry
+            if (attempt === 1) {
+                askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+            } else {
+                askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Retrying...';
+                // Ping backend to help wake it before retry
+                await wakeUpBackend();
+                await new Promise(r => setTimeout(r, 3000)); // small wait before retry
             }
 
-            addAIMessage(data);
+            try {
+                const response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        question: question,
+                        session_id: currentSessionId
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
 
-        } catch (errorObject) {
-            clearTimeout(timeoutId);
-            console.error("API ERROR:", errorObject);
-            const msg = errorObject.name === "AbortError"
-                ? "The backend server is waking up from sleep. Please wait a few seconds and try again."
-                : (errorObject.message || "Unable to connect to the AI BI Assistant server at " + API_URL);
-            showError(msg);
-        } finally {
-            isQueryProcessing = false;
-            loading.style.display = "none";
-            questionInput.disabled = false;
-            adaptPlaceholderForScreen();
-            askButton.disabled = false;
-            askButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send';
-            askButton.style.opacity = "1";
-            askButton.style.cursor = "pointer";
-            setTimeout(() => questionInput.focus(), 100);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Something went wrong.");
+                }
+
+                addAIMessage(data);
+                lastError = null;
+                break; // success — exit retry loop
+
+            } catch (errorObject) {
+                clearTimeout(timeoutId);
+                lastError = errorObject;
+                console.warn(`API attempt ${attempt} failed:`, errorObject.name, errorObject.message);
+
+                // If it's a network/CORS/502 error and we have retries left, continue
+                if (attempt < MAX_ATTEMPTS && (
+                    errorObject.name === "AbortError" ||
+                    errorObject.name === "TypeError" ||
+                    errorObject.message === "Failed to fetch"
+                )) {
+                    continue; // retry
+                }
+                break; // non-retryable error or out of retries
+            }
         }
+
+        // If all attempts failed, show a helpful error
+        if (lastError) {
+            console.error("API ERROR (all attempts failed):", lastError);
+            let msg;
+            if (lastError.name === "AbortError") {
+                msg = "⏳ The server is still waking up (Render free tier takes ~60s on first request). Please click Send again in a moment.";
+            } else if (lastError.message === "Failed to fetch" || lastError.name === "TypeError") {
+                msg = "🔌 Unable to reach the backend. The server may be starting up — please wait 30 seconds and try again.";
+            } else {
+                msg = lastError.message || "Unable to connect to the AI BI Assistant server.";
+            }
+            showError(msg);
+        }
+
+        // Always restore UI
+        isQueryProcessing = false;
+        loading.style.display = "none";
+        questionInput.disabled = false;
+        adaptPlaceholderForScreen();
+        askButton.disabled = false;
+        askButton.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send';
+        askButton.style.opacity = "1";
+        askButton.style.cursor = "pointer";
+        setTimeout(() => questionInput.focus(), 100);
     }
 
     document.getElementById("question").addEventListener("keydown", function(event) {
