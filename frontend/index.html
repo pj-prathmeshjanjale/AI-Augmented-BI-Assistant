@@ -616,6 +616,165 @@
             margin-right: 8px;
         }
 
+        /* =========================================================================
+           RENDER COLD-START OVERLAY
+           Shows when the free-tier backend is waking up from sleep (~30-60s)
+           ========================================================================= */
+
+        #renderWakeOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 0;
+        }
+        #renderWakeOverlay.active {
+            display: flex;
+        }
+
+        .rwo-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 48px 52px;
+            max-width: 560px;
+            width: 90%;
+            text-align: center;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            animation: rwoSlideIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        @keyframes rwoSlideIn {
+            from { opacity:0; transform: translateY(40px) scale(0.95); }
+            to   { opacity:1; transform: translateY(0) scale(1); }
+        }
+
+        .rwo-emoji {
+            font-size: 72px;
+            animation: rwoFloat 2.5s ease-in-out infinite;
+            display: block;
+            margin-bottom: 16px;
+            line-height: 1;
+        }
+        @keyframes rwoFloat {
+            0%,100% { transform: translateY(0); }
+            50%      { transform: translateY(-12px); }
+        }
+
+        .rwo-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: #ffffff;
+            margin: 0 0 8px;
+            letter-spacing: -0.5px;
+        }
+        .rwo-subtitle {
+            font-size: 14px;
+            color: #94a3b8;
+            margin: 0 0 28px;
+            line-height: 1.6;
+        }
+        .rwo-subtitle a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        .rwo-message-box {
+            background: rgba(37,99,235,0.15);
+            border: 1px solid rgba(37,99,235,0.35);
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 28px;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .rwo-msg-icon { font-size: 20px; flex-shrink: 0; }
+        .rwo-msg-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: #bfdbfe;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        /* Progress bar */
+        .rwo-progress-wrap {
+            background: rgba(255,255,255,0.08);
+            border-radius: 100px;
+            height: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .rwo-progress-bar {
+            height: 100%;
+            border-radius: 100px;
+            background: linear-gradient(90deg, #2563eb, #7c3aed, #06b6d4);
+            background-size: 200% 100%;
+            animation: rwoShimmer 1.8s linear infinite;
+            transition: width 1s ease;
+            width: 0%;
+        }
+        @keyframes rwoShimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .rwo-timer {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 24px;
+        }
+        .rwo-timer span {
+            color: #94a3b8;
+            font-weight: 700;
+        }
+
+        .rwo-dots {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+        .rwo-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #2563eb;
+            animation: rwoPulse 1.4s ease-in-out infinite;
+        }
+        .rwo-dot:nth-child(2) { animation-delay: 0.2s; background: #7c3aed; }
+        .rwo-dot:nth-child(3) { animation-delay: 0.4s; background: #06b6d4; }
+        @keyframes rwoPulse {
+            0%,100% { transform: scale(1); opacity: 0.5; }
+            50%      { transform: scale(1.4); opacity: 1; }
+        }
+
+        .rwo-footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #475569;
+        }
+        .rwo-success-banner {
+            display: none;
+            background: rgba(16,185,129,0.15);
+            border: 1px solid rgba(16,185,129,0.4);
+            border-radius: 12px;
+            padding: 14px 18px;
+            color: #6ee7b7;
+            font-size: 15px;
+            font-weight: 700;
+            animation: rwoPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+        }
+        @keyframes rwoPop {
+            from { transform: scale(0.85); opacity: 0; }
+            to   { transform: scale(1); opacity: 1; }
+        }
+
         /* ERROR */
 
         .error {
@@ -1134,7 +1293,50 @@
 
 </div>
 
-<!-- JAVASCRIPT ENGINE -->
+<!-- =====================================================================
+     RENDER FREE-TIER COLD START OVERLAY
+     Appears only when the backend is waking from sleep.
+     Auto-dismisses the moment /health responds successfully.
+     ===================================================================== -->
+<div id="renderWakeOverlay">
+    <div class="rwo-card">
+
+        <span class="rwo-emoji" id="rwoEmoji">😴</span>
+
+        <h2 class="rwo-title">Server is Waking Up!</h2>
+        <p class="rwo-subtitle">
+            This project runs on <a href="https://render.com" target="_blank">Render's free tier</a>,
+            which sleeps after 15 minutes of inactivity.<br>
+            The AI is grabbing its morning coffee ☕ — hang tight!
+        </p>
+
+        <div class="rwo-message-box">
+            <span class="rwo-msg-icon" id="rwoMsgIcon">⏳</span>
+            <span class="rwo-msg-text" id="rwoMsgText">Poking the server gently...</span>
+        </div>
+
+        <div class="rwo-progress-wrap">
+            <div class="rwo-progress-bar" id="rwoProgressBar"></div>
+        </div>
+        <div class="rwo-timer">Estimated wait: <span id="rwoTimerText">~45 seconds</span></div>
+
+        <div class="rwo-success-banner" id="rwoSuccessBanner">
+            🚀 Server is live! Loading your answer...
+        </div>
+
+        <div class="rwo-dots" id="rwoDots">
+            <div class="rwo-dot"></div>
+            <div class="rwo-dot"></div>
+            <div class="rwo-dot"></div>
+        </div>
+
+        <p class="rwo-footer">
+            Free-tier cold starts take ~30–60s. Paid tier would be instant 😅<br>
+            While you wait — this platform handles 50,000+ rows, FAISS RAG, and multi-table SQL 💪
+        </p>
+    </div>
+</div>
+
 <script>
 
     const BASE_API_HOST = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.protocol === "file:")
@@ -1142,6 +1344,148 @@
         : "https://ai-augmented-bi-assistant.onrender.com";
     const API_URL = `${BASE_API_HOST}/ask`;
     const UPLOAD_URL = `${BASE_API_HOST}/upload_csv`;
+
+    // =========================================================================
+    // RENDER FREE-TIER COLD START MANAGER
+    // Pings /health every 3s. If no response within 5s, shows the wakeup overlay.
+    // Auto-dismisses and re-runs the original query the moment the server is alive.
+    // =========================================================================
+
+    const RWO = {
+        overlay:  document.getElementById("renderWakeOverlay"),
+        emoji:    document.getElementById("rwoEmoji"),
+        msgIcon:  document.getElementById("rwoMsgIcon"),
+        msgText:  document.getElementById("rwoMsgText"),
+        bar:      document.getElementById("rwoProgressBar"),
+        timer:    document.getElementById("rwoTimerText"),
+        success:  document.getElementById("rwoSuccessBanner"),
+        dots:     document.getElementById("rwoDots"),
+
+        _pingInterval: null,
+        _tickInterval: null,
+        _elapsed: 0,
+        _maxWait: 90,          // seconds before we give up showing progress
+        _onAlive: null,        // callback to run when server wakes
+
+        // Funny cycling messages shown during wakeup
+        _messages: [
+            { icon: "😴", text: "Server is fast asleep... giving it a gentle nudge." },
+            { icon: "☕", text: "Brewing the AI's morning coffee — it's particular about its espresso." },
+            { icon: "🧠", text: "Warming up 25 FAISS knowledge documents and the LangChain RAG pipeline..." },
+            { icon: "🐌", text: "Free tier be like: 'I work when I feel like it.' We feel you, buddy." },
+            { icon: "⚙️", text: "Spinning up FastAPI, loading SQLite with 50,000+ rows of business data..." },
+            { icon: "🎯", text: "Groq LLM is stretching its neurons — multi-table SQL queries incoming!" },
+            { icon: "🛡️", text: "Security guardrails initializing — DROP TABLE will NOT be tolerated here." },
+            { icon: "📊", text: "Chart.js is selecting its finest color palette for your KPI cards..." },
+            { icon: "🚀", text: "Almost there! The server is doing its best impression of a rocket launch." },
+            { icon: "🤞", text: "Any second now... seriously, any second. We promise this is worth it." },
+        ],
+        _msgIndex: 0,
+
+        _emojis: ["😴","🥱","☕","⚙️","🧠","🚀","✨"],
+        _emojiIndex: 0,
+
+        show(onAlive) {
+            this._onAlive = onAlive;
+            this._elapsed = 0;
+            this._msgIndex = 0;
+            this._emojiIndex = 0;
+            this.bar.style.width = "0%";
+            this.success.style.display = "none";
+            this.dots.style.display = "flex";
+            this.timer.textContent = "~45 seconds";
+            this._setMessage(0);
+            this.overlay.classList.add("active");
+            this._startTick();
+            this._startPing();
+        },
+
+        _setMessage(idx) {
+            const m = this._messages[idx % this._messages.length];
+            this.msgIcon.textContent = m.icon;
+            this.msgText.textContent = m.text;
+        },
+
+        _startTick() {
+            this._tickInterval = setInterval(() => {
+                this._elapsed++;
+                // Progress bar: grows to 95% over 90s, never hits 100% until actually alive
+                const pct = Math.min(95, (this._elapsed / this._maxWait) * 100);
+                this.bar.style.width = pct + "%";
+
+                // Countdown timer
+                const remaining = Math.max(0, 55 - this._elapsed);
+                this.timer.textContent = remaining > 0 ? `~${remaining} seconds` : "almost there...";
+
+                // Cycle messages every 7s
+                if (this._elapsed % 7 === 0) {
+                    this._msgIndex++;
+                    this._setMessage(this._msgIndex);
+                }
+
+                // Cycle emoji every 10s
+                if (this._elapsed % 10 === 0) {
+                    this._emojiIndex++;
+                    this.emoji.textContent = this._emojis[this._emojiIndex % this._emojis.length];
+                }
+            }, 1000);
+        },
+
+        _startPing() {
+            const ping = async () => {
+                try {
+                    const ctrl = new AbortController();
+                    const t = setTimeout(() => ctrl.abort(), 5000);
+                    const res = await fetch(`${BASE_API_HOST}/health`, { signal: ctrl.signal });
+                    clearTimeout(t);
+                    if (res.ok) { this._onSuccess(); return; }
+                } catch (_) {}
+                // not alive yet, try again in 3s
+                this._pingInterval = setTimeout(ping, 3000);
+            };
+            this._pingInterval = setTimeout(ping, 2000); // first ping after 2s
+        },
+
+        _onSuccess() {
+            clearInterval(this._tickInterval);
+            clearTimeout(this._pingInterval);
+            this.bar.style.width = "100%";
+            this.timer.textContent = "Ready!";
+            this.dots.style.display = "none";
+            this.success.style.display = "block";
+            this.msgIcon.textContent = "🟢";
+            this.msgText.textContent = "Backend is live! Running your query now...";
+            this.emoji.textContent = "🚀";
+            // short celebration pause, then dismiss and re-run
+            setTimeout(() => {
+                this.overlay.classList.remove("active");
+                if (typeof this._onAlive === "function") this._onAlive();
+            }, 1500);
+        },
+
+        dismiss() {
+            clearInterval(this._tickInterval);
+            clearTimeout(this._pingInterval);
+            this.overlay.classList.remove("active");
+        }
+    };
+
+    // Probe the backend health silently on page load (no overlay yet).
+    // If it responds fast → server is warm, set flag. If slow → will show overlay on first query.
+    let _serverKnownAlive = false;
+    (async () => {
+        if (BASE_API_HOST.includes("localhost") || BASE_API_HOST.includes("127.0.0.1")) {
+            _serverKnownAlive = true; return; // local dev, skip probe
+        }
+        try {
+            const ctrl = new AbortController();
+            setTimeout(() => ctrl.abort(), 5000);
+            const res = await fetch(`${BASE_API_HOST}/health`, { signal: ctrl.signal });
+            if (res.ok) _serverKnownAlive = true;
+        } catch (_) { _serverKnownAlive = false; }
+    })();
+
+
 
     let currentSessionId = localStorage.getItem("ai_bi_session_id");
     if (!currentSessionId) {
@@ -1587,6 +1931,32 @@
         askButton.disabled = true;
         askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
 
+        // --- Smart cold-start detection ---
+        // If the server is NOT known alive, do a quick 5s ping first.
+        // If it times out → show the RWO overlay and wait for it to wake up,
+        // then automatically continue with the query.
+        if (!_serverKnownAlive && !BASE_API_HOST.includes("127.0.0.1") && !BASE_API_HOST.includes("localhost")) {
+            const probeAlive = await new Promise(resolve => {
+                const ctrl = new AbortController();
+                const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 5000);
+                fetch(`${BASE_API_HOST}/health`, { signal: ctrl.signal })
+                    .then(r => { clearTimeout(t); resolve(r.ok); })
+                    .catch(() => { clearTimeout(t); resolve(false); });
+            });
+
+            if (!probeAlive) {
+                // Server is sleeping — show overlay and wait for it to wake
+                await new Promise(resolve => {
+                    RWO.show(() => {
+                        _serverKnownAlive = true;
+                        resolve();
+                    });
+                });
+            } else {
+                _serverKnownAlive = true;
+            }
+        }
+
         // --- RETRY LOOP: attempt up to 2 times (handles cold start) ---
         const MAX_ATTEMPTS = 2;
         const TIMEOUT_MS = 120000; // 120 seconds (handles Render free-tier cold start ~50s)
@@ -1601,9 +1971,7 @@
                 askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
             } else {
                 askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Retrying...';
-                // Ping backend to help wake it before retry
-                await wakeUpBackend();
-                await new Promise(r => setTimeout(r, 3000)); // small wait before retry
+                await new Promise(r => setTimeout(r, 2000));
             }
 
             try {
