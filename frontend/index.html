@@ -637,6 +637,7 @@
         }
 
         .rwo-card {
+            position: relative;
             background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 24px;
@@ -1243,6 +1244,12 @@
             <button class="btn-pdf-export" onclick="exportExecutivePDF()" title="Export Executive PDF Summary Report">
                 <i class="fa-solid fa-file-pdf"></i> Export PDF Report
             </button>
+
+            <!-- SERVER STATUS PILL (only shown on Vercel/production) -->
+            <div id="serverStatusPill" style="display:none; align-items:center; gap:6px; padding:6px 12px; border-radius:100px; font-size:12px; font-weight:700; border:1px solid #e2e8f0; background:#f8fafc; color:#64748b;">
+                <span id="serverStatusDot" style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>
+                <span id="serverStatusText">Checking server...</span>
+            </div>
         </div>
     </header>
 
@@ -1300,6 +1307,7 @@
      ===================================================================== -->
 <div id="renderWakeOverlay">
     <div class="rwo-card">
+        <button onclick="RWO.dismiss()" title="Close overlay and explore interface" style="position: absolute; top: 18px; right: 20px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #94a3b8; font-size: 18px; cursor: pointer; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; line-height: 1; transition: all 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#94a3b8'">&times;</button>
 
         <span class="rwo-emoji" id="rwoEmoji">😴</span>
 
@@ -1329,6 +1337,10 @@
             <div class="rwo-dot"></div>
             <div class="rwo-dot"></div>
         </div>
+
+        <button onclick="RWO.dismiss()" style="margin-top: 14px; background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #94a3b8; font-size: 12px; font-weight: 600; padding: 6px 16px; border-radius: 8px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='rgba(255,255,255,0.5)';this.style.color='#fff'" onmouseout="this.style.borderColor='rgba(255,255,255,0.2)';this.style.color='#94a3b8'">
+            Explore dashboard while waiting &rarr;
+        </button>
 
         <p class="rwo-footer">
             Free-tier cold starts take ~30–60s. Paid tier would be instant 😅<br>
@@ -1386,36 +1398,46 @@
         _emojiIndex: 0,
 
         show(onAlive) {
-            this._onAlive = onAlive;
+            if (onAlive) {
+                const prevOnAlive = this._onAlive;
+                this._onAlive = () => {
+                    if (typeof prevOnAlive === "function") prevOnAlive();
+                    onAlive();
+                };
+            }
+            if (this.overlay && this.overlay.classList.contains("active")) {
+                return; // already active, keep animating without reset
+            }
             this._elapsed = 0;
             this._msgIndex = 0;
             this._emojiIndex = 0;
-            this.bar.style.width = "0%";
-            this.success.style.display = "none";
-            this.dots.style.display = "flex";
-            this.timer.textContent = "~45 seconds";
+            if (this.bar) this.bar.style.width = "0%";
+            if (this.success) this.success.style.display = "none";
+            if (this.dots) this.dots.style.display = "flex";
+            if (this.timer) this.timer.textContent = "~45 seconds";
             this._setMessage(0);
-            this.overlay.classList.add("active");
+            if (this.overlay) this.overlay.classList.add("active");
             this._startTick();
             this._startPing();
         },
 
         _setMessage(idx) {
             const m = this._messages[idx % this._messages.length];
-            this.msgIcon.textContent = m.icon;
-            this.msgText.textContent = m.text;
+            if (this.msgIcon) this.msgIcon.textContent = m.icon;
+            if (this.msgText) this.msgText.textContent = m.text;
         },
 
         _startTick() {
+            clearInterval(this._tickInterval);
             this._tickInterval = setInterval(() => {
                 this._elapsed++;
-                // Progress bar: grows to 95% over 90s, never hits 100% until actually alive
+                // Progress bar: grows to 95% over 90s, hits 100% only on confirmed response
                 const pct = Math.min(95, (this._elapsed / this._maxWait) * 100);
-                this.bar.style.width = pct + "%";
+                if (this.bar) this.bar.style.width = pct + "%";
 
                 // Countdown timer
-                const remaining = Math.max(0, 55 - this._elapsed);
-                this.timer.textContent = remaining > 0 ? `~${remaining} seconds` : "almost there...";
+                const remaining = Math.max(0, 50 - this._elapsed);
+                if (this.timer) this.timer.textContent = remaining > 0 ? `~${remaining} seconds` : "almost there...";
 
                 // Cycle messages every 7s
                 if (this._elapsed % 7 === 0) {
@@ -1426,66 +1448,140 @@
                 // Cycle emoji every 10s
                 if (this._elapsed % 10 === 0) {
                     this._emojiIndex++;
-                    this.emoji.textContent = this._emojis[this._emojiIndex % this._emojis.length];
+                    if (this.emoji) this.emoji.textContent = this._emojis[this._emojiIndex % this._emojis.length];
                 }
             }, 1000);
         },
 
         _startPing() {
+            clearTimeout(this._pingInterval);
             const ping = async () => {
                 try {
                     const ctrl = new AbortController();
-                    const t = setTimeout(() => ctrl.abort(), 5000);
+                    const t = setTimeout(() => ctrl.abort(), 4000);
                     const res = await fetch(`${BASE_API_HOST}/health`, { signal: ctrl.signal });
                     clearTimeout(t);
                     if (res.ok) { this._onSuccess(); return; }
                 } catch (_) {}
-                // not alive yet, try again in 3s
-                this._pingInterval = setTimeout(ping, 3000);
+                // not alive yet, retry in 2.5s
+                this._pingInterval = setTimeout(ping, 2500);
             };
-            this._pingInterval = setTimeout(ping, 2000); // first ping after 2s
+            this._pingInterval = setTimeout(ping, 1500);
         },
 
         _onSuccess() {
             clearInterval(this._tickInterval);
             clearTimeout(this._pingInterval);
-            this.bar.style.width = "100%";
-            this.timer.textContent = "Ready!";
-            this.dots.style.display = "none";
-            this.success.style.display = "block";
-            this.msgIcon.textContent = "🟢";
-            this.msgText.textContent = "Backend is live! Running your query now...";
-            this.emoji.textContent = "🚀";
-            // short celebration pause, then dismiss and re-run
+            _serverKnownAlive = true;
+            StatusPill.live();
+            if (this.bar) this.bar.style.width = "100%";
+            if (this.timer) this.timer.textContent = "Ready!";
+            if (this.dots) this.dots.style.display = "none";
+            if (this.success) this.success.style.display = "block";
+            if (this.msgIcon) this.msgIcon.textContent = "🟢";
+            if (this.msgText) this.msgText.textContent = "Backend is live! Running your query now...";
+            if (this.emoji) this.emoji.textContent = "🚀";
+            // Short celebration pause, then dismiss and run queued action
             setTimeout(() => {
-                this.overlay.classList.remove("active");
-                if (typeof this._onAlive === "function") this._onAlive();
-            }, 1500);
+                if (this.overlay) this.overlay.classList.remove("active");
+                const cb = this._onAlive;
+                this._onAlive = null;
+                if (typeof cb === "function") cb();
+            }, 1200);
         },
 
         dismiss() {
             clearInterval(this._tickInterval);
-            clearTimeout(this._pingInterval);
-            this.overlay.classList.remove("active");
+            if (this.overlay) this.overlay.classList.remove("active");
+            // Keep pinging in background so StatusPill updates when server is ready
         }
     };
 
-    // Probe the backend health silently on page load (no overlay yet).
-    // If it responds fast → server is warm, set flag. If slow → will show overlay on first query.
+    // =========================================================================
+    // SERVER STATUS MANAGER
+    // On page load: immediately shows status pill and probes /health (1.2s timeout).
+    // If server is sleeping on Render free-tier → show overlay right away!
+    // If server is already alive → green pill, instant responsiveness.
+    // =========================================================================
+
     let _serverKnownAlive = false;
-    (async () => {
-        if (BASE_API_HOST.includes("localhost") || BASE_API_HOST.includes("127.0.0.1")) {
-            _serverKnownAlive = true; return; // local dev, skip probe
+    let _pendingQuestion = null; // stores question to auto-run after wakeup
+
+    const StatusPill = {
+        pill: document.getElementById("serverStatusPill"),
+        dot:  document.getElementById("serverStatusDot"),
+        text: document.getElementById("serverStatusText"),
+
+        show() {
+            if (!BASE_API_HOST.includes("onrender.com")) return;
+            if (this.pill) this.pill.style.display = "flex";
+        },
+        checking() {
+            this.show();
+            if (this.dot) {
+                this.dot.style.background = "#f59e0b";
+                this.dot.style.animation = "none";
+            }
+            if (this.text) this.text.textContent = "Checking server...";
+        },
+        sleeping() {
+            this.show();
+            if (this.dot) {
+                this.dot.style.background = "#ef4444";
+                this.dot.style.animation = "rwoPulse 1s ease-in-out infinite";
+            }
+            if (this.text) this.text.textContent = "Server sleeping 😴";
+        },
+        live() {
+            this.show();
+            if (this.dot) {
+                this.dot.style.background = "#22c55e";
+                this.dot.style.animation = "none";
+            }
+            if (this.text) this.text.textContent = "Server live 🟢";
         }
-        try {
+    };
+
+    (async () => {
+        // Skip on local dev
+        if (BASE_API_HOST.includes("localhost") || BASE_API_HOST.includes("127.0.0.1")) {
+            _serverKnownAlive = true;
+            return;
+        }
+
+        StatusPill.checking();
+
+        // Fast 1.2s probe on page load.
+        // If server is awake, it responds in ~200ms.
+        // If server is sleeping on Render free-tier, 1.2s is enough to immediately show wakeup overlay!
+        const alive = await new Promise(resolve => {
             const ctrl = new AbortController();
-            setTimeout(() => ctrl.abort(), 5000);
-            const res = await fetch(`${BASE_API_HOST}/health`, { signal: ctrl.signal });
-            if (res.ok) _serverKnownAlive = true;
-        } catch (_) { _serverKnownAlive = false; }
+            const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 1200);
+            fetch(`${BASE_API_HOST}/health`, { signal: ctrl.signal })
+                .then(r => { clearTimeout(t); resolve(r.ok); })
+                .catch(() => { clearTimeout(t); resolve(false); });
+        });
+
+        if (alive) {
+            _serverKnownAlive = true;
+            StatusPill.live();
+            loadAvailableDatasets();
+        } else {
+            // Server is sleeping — show overlay immediately on page load so recruiter sees it right away!
+            StatusPill.sleeping();
+            RWO.show(() => {
+                _serverKnownAlive = true;
+                StatusPill.live();
+                loadAvailableDatasets();
+                if (_pendingQuestion) {
+                    const q = _pendingQuestion;
+                    _pendingQuestion = null;
+                    document.getElementById("question").value = q;
+                    askQuestion();
+                }
+            });
+        }
     })();
-
-
 
     let currentSessionId = localStorage.getItem("ai_bi_session_id");
     if (!currentSessionId) {
@@ -1563,7 +1659,10 @@
 
     async function loadAvailableDatasets() {
         try {
-            const response = await fetch(`${BASE_API_HOST}/datasets?session_id=${currentSessionId}`);
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 5000);
+            const response = await fetch(`${BASE_API_HOST}/datasets?session_id=${currentSessionId}`, { signal: ctrl.signal });
+            clearTimeout(t);
             const data = await response.json();
             const selector = document.getElementById("datasetSelector");
             if (selector && data.datasets) {
@@ -1932,29 +2031,16 @@
         askButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
 
         // --- Smart cold-start detection ---
-        // If the server is NOT known alive, do a quick 5s ping first.
-        // If it times out → show the RWO overlay and wait for it to wake up,
-        // then automatically continue with the query.
+        // If the server is NOT known alive, show the wakeup overlay immediately (zero delay!)
+        // and wait for the backend to become active before executing query.
         if (!_serverKnownAlive && !BASE_API_HOST.includes("127.0.0.1") && !BASE_API_HOST.includes("localhost")) {
-            const probeAlive = await new Promise(resolve => {
-                const ctrl = new AbortController();
-                const t = setTimeout(() => { ctrl.abort(); resolve(false); }, 5000);
-                fetch(`${BASE_API_HOST}/health`, { signal: ctrl.signal })
-                    .then(r => { clearTimeout(t); resolve(r.ok); })
-                    .catch(() => { clearTimeout(t); resolve(false); });
-            });
-
-            if (!probeAlive) {
-                // Server is sleeping — show overlay and wait for it to wake
-                await new Promise(resolve => {
-                    RWO.show(() => {
-                        _serverKnownAlive = true;
-                        resolve();
-                    });
+            await new Promise(resolve => {
+                RWO.show(() => {
+                    _serverKnownAlive = true;
+                    StatusPill.live();
+                    resolve();
                 });
-            } else {
-                _serverKnownAlive = true;
-            }
+            });
         }
 
         // --- RETRY LOOP: attempt up to 2 times (handles cold start) ---
@@ -2001,13 +2087,22 @@
                 lastError = errorObject;
                 console.warn(`API attempt ${attempt} failed:`, errorObject.name, errorObject.message);
 
-                // If it's a network/CORS/502 error and we have retries left, continue
+                // If it's a network/cold-start error and we have retries left:
                 if (attempt < MAX_ATTEMPTS && (
                     errorObject.name === "AbortError" ||
                     errorObject.name === "TypeError" ||
                     errorObject.message === "Failed to fetch"
                 )) {
-                    continue; // retry
+                    _serverKnownAlive = false;
+                    StatusPill.sleeping();
+                    await new Promise(resolve => {
+                        RWO.show(() => {
+                            _serverKnownAlive = true;
+                            StatusPill.live();
+                            resolve();
+                        });
+                    });
+                    continue; // retry now that server is confirmed alive!
                 }
                 break; // non-retryable error or out of retries
             }
